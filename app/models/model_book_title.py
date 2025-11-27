@@ -1,0 +1,19 @@
+from sqlalchemy import Column, String, Integer, ForeignKey
+from sqlalchemy.orm import relationship
+from app.models import Base
+
+
+class BookTitle(Base):
+    __tablename__ = "booktitles"
+
+    book_title_id = Column(String(50), primary_key=True)
+    name = Column(String(255), nullable=False)
+    total_quantity = Column(Integer, default=0)
+    available = Column(Integer, default=0)
+    category = Column(String(100), nullable=True)
+    author = Column(String(100), nullable=True)
+    publisher_id = Column(String(50), ForeignKey("publishers.pub_id"))
+
+    publisher = relationship("Publisher", back_populates="book_titles")
+    books = relationship("Book", back_populates="book_title")
+    acquisition_details = relationship("AcquisitionSlipDetail", back_populates="book_title")

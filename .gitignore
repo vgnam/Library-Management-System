@@ -1,0 +1,45 @@
+# Virtual environments
+venv/
+.venv310/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# VS Code / PyCharm settings
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
+
+# SQLite / database files
+*.sqlite3
+*.db
+
+# Environment variables
+.env
+.env.*
+
+# Python packaging
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# mypy / type check
+.mypy_cache/
+.dmypy.json
+
+# Coverage / testing
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+
+# OS generated files
+.DS_Store
+Thumbs.db

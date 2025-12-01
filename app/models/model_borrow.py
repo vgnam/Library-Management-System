@@ -19,11 +19,13 @@ class BorrowSlip(Base):
     librarian_id = Column(String(50), ForeignKey("librarians.lib_id"), nullable=True)
     borrow_date = Column(DateTime, nullable=False)
     return_date = Column(DateTime, nullable=True)
+
     status = Column(Enum(BorrowStatusEnum), default=BorrowStatusEnum.active)
 
     reader = relationship("Reader", back_populates="borrow_slips")
     librarian = relationship("Librarian", back_populates="borrow_slips")
     details = relationship("BorrowSlipDetail", back_populates="borrow_slip")
+
 
 
 class BorrowSlipDetail(Base):
@@ -32,7 +34,11 @@ class BorrowSlipDetail(Base):
     id = Column(String(50), primary_key=True)
     borrow_slip_id = Column(String(50), ForeignKey("borrowslips.bs_id"), nullable=False)
     book_id = Column(String(50), ForeignKey("books.book_id"), nullable=False)
-    return_date = Column(DateTime, nullable=True)
+    # due_date = Column(DateTime, nullable=True)  # When book should be returned
+    return_date = Column(DateTime, nullable=True)  # When book was actually returned
+
+    status = Column(Enum(BorrowStatusEnum), default=BorrowStatusEnum.active)
+
 
     borrow_slip = relationship("BorrowSlip", back_populates="details")
     book = relationship("Book", back_populates="borrow_details")

@@ -43,3 +43,6 @@ htmlcov/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Node.js dependencies
+frontend/node_modules/

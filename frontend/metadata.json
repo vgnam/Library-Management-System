@@ -1,0 +1,5 @@
+{
+  "name": "National Library Portal",
+  "description": "A modern web platform for the National Library, featuring book management, borrowing systems, and AI assistance.",
+  "requestFramePermissions": []
+}

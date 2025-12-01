@@ -1,0 +1,138 @@
+
+export enum UserRole {
+  READER = 'reader',
+  LIBRARIAN = 'librarian',
+  MANAGER = 'manager'
+}
+
+export enum Gender {
+  MALE = 'male',
+  FEMALE = 'female',
+  OTHER = 'other'
+}
+
+export enum ReaderType {
+  STANDARD = 'standard',
+  VIP = 'vip'
+}
+
+// Matches Python BorrowStatusEnum exactly
+export enum BorrowStatus {
+  PENDING = 'Pending',
+  ACTIVE = 'Active',
+  RETURNED = 'Returned',
+  OVERDUE = 'Overdue',
+  REJECTED = 'Rejected'
+}
+
+export interface User {
+  user_id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  phone?: string;
+  address?: string;
+  created_at?: string;
+}
+
+// Corresponds to the "BookTitle" data returned by the Search API
+export interface BookSearchResult {
+  id?: string; // Mapped ID
+  book_title_id?: string; // Raw DB ID
+  name: string;
+  author: string;
+  publisher: string;
+  category?: string; 
+  available_copies?: number; // Number of physical books available to borrow
+}
+
+// Corresponds to the "Book" class provided (Physical Copy)
+export interface PhysicalBook {
+  book_id: string; // Primary Key
+  book_title_id: string; // ForeignKey
+  condition?: string;
+  being_borrowed: boolean;
+}
+
+export interface SearchResponse {
+  total: number;
+  page: number;
+  page_size: number;
+  books: BookSearchResult[];
+}
+
+// The inner 'book' object in the history record
+export interface HistoryBookInfo {
+  book_id: string;
+  title: string;
+  author: string;
+  due_date: string | null;
+  actual_return_date: string | null;
+  is_returned: boolean;
+  is_overdue: boolean;
+  days_overdue: number;
+  status: string;
+}
+
+// Top level history record (Matches provided JSON structure)
+export interface BorrowHistoryRecord {
+  borrow_slip_id: string;
+  borrow_detail_id: string;
+  borrow_date: string;
+  due_date: string | null;      // Slip Due Date
+  actual_return_date: string | null;
+  status: string;               // Slip Status
+  book: HistoryBookInfo;        // Nested book details
+}
+
+export interface HistoryResponse {
+  total: number;
+  page: number;
+  page_size: number;
+  history: BorrowHistoryRecord[];
+  total_pages?: number;
+}
+
+// Matches the flat structure of 'currently_borrowed_books' in provided JSON
+export interface CurrentlyBorrowedBook {
+  borrow_detail_id: string;
+  borrow_slip_id: string;
+  book_id: string;
+  title: string;
+  author: string;
+  borrow_date: string;
+  due_date: string;
+  is_overdue: boolean;
+  days_overdue: number;
+  status: string;
+}
+
+export interface CurrentBorrowedResponse {
+  total_borrowed: number;
+  currently_borrowed_books: CurrentlyBorrowedBook[];
+}
+
+export interface OverdueResponse {
+  total_overdue: number;
+  overdue_books: any[]; // Structure likely similar to CurrentlyBorrowedBook
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  role?: string; 
+}
+
+export interface RequestedBook {
+  book_id: string;
+  name: string;
+}
+
+export interface BorrowRequest {
+  borrow_slip_id: string; // Maps to bs_id
+  reader_name: string;
+  request_date: string;
+  status: BorrowStatus; // Updated to use the Enum
+  books_count: number;
+  books?: RequestedBook[];
+}

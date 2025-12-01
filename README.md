@@ -4,7 +4,7 @@ A full-stack Library Management System including:
 
 - **Backend:** FastAPI (Python)  
 - **Frontend:** React / Vite (or your chosen JS framework)  
-- **Database:** (PostgreSQL / MySQL / SQLite — update if needed)
+- **Database:** (SQL Server, you can connect to any database you want)
 
 ---
 

@@ -10,6 +10,8 @@ class BorrowStatusEnum(str, enum.Enum):
     returned = "Returned"
     overdue = "Overdue"
     rejected = "Rejected"
+    lost = "Lost"  # Add this line
+    pending_return = "PendingReturn"  # Add this line
 
 class BorrowSlip(Base):
     __tablename__ = "borrowslips"

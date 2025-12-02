@@ -46,20 +46,16 @@ def get_application() -> FastAPI:
 
 app = get_application()
 if __name__ == '__main__':
-    from fastapi_sqlalchemy import db
-    from app.services.srv_history import HistoryService
-
-    reader_id = "5003dca9-1ba7-438b-935d-c4bb3a631265"
-    history_service = HistoryService()
-
-    with db():
-        history = history_service.get_borrow_history(reader_id)
-        print("Borrow History:", history)
-
-        current = history_service.get_currently_borrowed_books(reader_id)
-        print("\nCurrently Borrowed:", current)
-
-        overdue = history_service.get_overdue_books(reader_id)
-        print("\nOverdue Books:", overdue)
+    # from fastapi import FastAPI
+    # from fastapi.routing import APIRoute
+    #
+    #
+    # @app.on_event("startup")
+    # def print_routes():
+    #     print("\n📌 Registered API Routes:")
+    #     for route in app.routes:
+    #         if isinstance(route, APIRoute):
+    #             methods = ",".join(route.methods)
+    #             print(f"{methods:10} {route.path}")
 
     uvicorn.run(app, host="0.0.0.0", port=8000)

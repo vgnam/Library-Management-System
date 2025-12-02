@@ -1,6 +1,7 @@
 # test_history.py
 from app.db.base import SessionLocal
 from app.services.srv_history import HistoryService
+from app.services.srv_return import ReturnService
 from fastapi_sqlalchemy import db
 
 # Pick a test reader
@@ -14,6 +15,7 @@ db.session = db_session
 
 history_service = HistoryService()
 
+print()
 # 1️⃣ Borrow history
 history = history_service.get_borrow_history(reader_id)
 print("Borrow History:")

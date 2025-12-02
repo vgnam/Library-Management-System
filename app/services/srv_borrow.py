@@ -122,6 +122,7 @@ class BorrowService:
                 id=str(uuid.uuid4()),
                 borrow_slip_id=borrow_slip.bs_id,
                 book_id=book.book_id,
+                status=BorrowStatusEnum.pending,
                 return_date=None
             )
             db.session.add(borrow_detail)
@@ -184,6 +185,8 @@ class BorrowService:
                     )
                 book.being_borrowed = True
                 detail.return_date = current_time + loan_period
+
+                detail.status = "active"  # ← THÊM DÒNG NÀY
 
         db.session.commit()
 

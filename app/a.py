@@ -1,33 +1,33 @@
-# test_history.py
-from app.db.base import SessionLocal
-from app.services.srv_history import HistoryService
-from fastapi_sqlalchemy import db
+from app.db.base import engine, Base, DATABASE_URL
+from sqlalchemy import inspect
 
-# Pick a test reader
-reader_id = "5003dca9-1ba7-438b-935d-c4bb3a631265"
+print(f"📂 Database URL: {DATABASE_URL}")
 
-# Create a session manually
-db_session = SessionLocal()
-
-# Patch fastapi_sqlalchemy.db.session for HistoryService
-db.session = db_session
-
-history_service = HistoryService()
-
-# 1️⃣ Borrow history
-history = history_service.get_borrow_history(reader_id)
-print("Borrow History:")
-print(history)
-
-# 2️⃣ Currently borrowed books
-current = history_service.get_currently_borrowed_books(reader_id)
-print("\nCurrently Borrowed:")
-print(current)
-
-# 3️⃣ Overdue books
-overdue = history_service.get_overdue_books(reader_id)
-print("\nOverdue Books:")
-print(overdue)
-
-# Close session
-db_session.close()
+try:
+    # Test connection
+    with engine.connect() as conn:
+        print("✅ Kết nối SQLite thành công!")
+    
+    # Create tables
+    print("\n🔨 Đang tạo tables...")
+    Base.metadata.create_all(bind=engine)
+    print("✅ Tạo tables thành công!")
+    
+    # List all tables
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+    
+    if tables:
+        print(f"\n📊 Các tables đã tạo:")
+        for table in tables:
+            columns = inspector.get_columns(table)
+            print(f"  - {table} ({len(columns)} columns)")
+            for col in columns:
+                print(f"      • {col['name']}: {col['type']}")
+    else:
+        print("\n⚠️ Chưa có tables nào")
+    
+except Exception as e:
+    print(f"❌ Lỗi: {e}")
+    import traceback
+    traceback.print_exc()

@@ -93,3 +93,20 @@ def get_overdue_books(
     result = history_service.get_overdue_books(reader.reader_id)
 
     return DataResponse().success_response(result)
+
+
+# ✅ NEW ENDPOINT: Get Returned Books
+@router.get("/returned", summary="Get Returned Books")
+def get_returned_books(
+        token: str = Depends(auth_service.reader_oauth2)
+) -> DataResponse:
+    """
+    Get all books that have been returned by the reader.
+    Includes late return info per book.
+    """
+    reader = get_current_reader(token)
+
+    # Call service to get returned books
+    result = history_service.get_returned_books(reader.reader_id)
+
+    return DataResponse().success_response(result)

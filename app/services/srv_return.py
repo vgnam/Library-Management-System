@@ -18,7 +18,8 @@ class ReturnService:
     def request_return(borrow_detail_id: str, user_id: str) -> dict:
         """
         Step 1: User requests to return a book.
-        Sets detail status to 'PendingReturn'.
+        Input: user_id (from JWT token)
+        Sets BorrowSlipDetail.status to 'PendingReturn'.
         """
         # Get borrow detail
         detail = db.session.query(BorrowSlipDetail).filter(
@@ -27,7 +28,7 @@ class ReturnService:
         if not detail:
             raise HTTPException(status_code=404, detail="Borrow detail not found")
 
-        # Find the reader associated with this user_id
+        # Find reader by user_id
         reader = db.session.query(Reader).filter(Reader.user_id == user_id).first()
         if not reader:
             raise HTTPException(status_code=404, detail="Reader not found for this user")
@@ -40,11 +41,11 @@ class ReturnService:
         if not slip:
             raise HTTPException(status_code=404, detail="Borrow slip not found")
 
-        # Only allow if slip status is active or overdue
-        if slip.status not in [BorrowStatusEnum.active, BorrowStatusEnum.overdue]:
+        # ✅ CHECK DETAIL STATUS (not slip status)
+        if detail.status not in [BorrowStatusEnum.active, BorrowStatusEnum.overdue]:
             raise HTTPException(
                 status_code=400,
-                detail=f"Cannot return book. Borrow slip status: {slip.status.value}"
+                detail=f"Cannot return book. Current status: {detail.status.value}"
             )
 
         # ✅ Set detail status to PENDING_RETURN
@@ -208,3 +209,4 @@ class ReturnService:
                 "due_date": d.return_date
             })
         return results
+

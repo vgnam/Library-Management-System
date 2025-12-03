@@ -4,6 +4,7 @@ from typing import Optional
 
 from app.services.srv_return import ReturnService
 from app.services.srv_auth import AuthService
+from app.services.srv_history import HistoryService
 from app.schemas.sche_base import DataResponse
 
 router = APIRouter(prefix="/returns", tags=["Returns"])

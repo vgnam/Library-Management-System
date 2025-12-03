@@ -11,7 +11,6 @@ from app.db.base import engine
 from app.core.config import settings
 from app.helpers.exception_handler import CustomException, http_exception_handler
 
-
 logging.config.fileConfig(settings.LOGGING_CONFIG_FILE, disable_existing_loggers=False)
 Base.metadata.create_all(bind=engine)
 
@@ -48,8 +47,6 @@ app = get_application()
 if __name__ == '__main__':
     # from fastapi import FastAPI
     # from fastapi.routing import APIRoute
-    #
-    #
     # @app.on_event("startup")
     # def print_routes():
     #     print("\n📌 Registered API Routes:")
@@ -57,5 +54,15 @@ if __name__ == '__main__':
     #         if isinstance(route, APIRoute):
     #             methods = ",".join(route.methods)
     #             print(f"{methods:10} {route.path}")
+
+    # from fastapi_sqlalchemy import db
+    # from app.services.srv_history import HistoryService
+    # from app.services.srv_return import ReturnService
+    # reader_id = "5003dca9-1ba7-438b-935d-c4bb3a631265"
+    # history_service = HistoryService()
+    #
+    # with db():
+    #     overdue = history_service.get_currently_borrowed_books(reader_id)
+    #     print("\nReturned Books:", overdue)
 
     uvicorn.run(app, host="0.0.0.0", port=8000)

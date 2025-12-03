@@ -174,6 +174,16 @@ export const BookSearch: React.FC = () => {
               </Button>
             </div>
          </form>
+
+         {/* Result Count Display */}
+         {hasSearched && (
+           <div className="flex items-center justify-between px-1">
+              <span className="text-sm text-gray-600">
+                Found <span className="font-bold text-gray-900">{totalRecords}</span> results
+                {keyword && <span> matching "<span className="font-medium text-gray-900">{keyword}</span>"</span>}
+              </span>
+           </div>
+         )}
       </div>
 
       {/* Alerts */}
@@ -231,7 +241,7 @@ export const BookSearch: React.FC = () => {
                   </span>
                 )}
               </div>
-              
+
               <div className="flex-grow space-y-2 mb-4">
                 <h3 className="font-bold text-lg text-gray-900 line-clamp-2 leading-snug" title={book.name}>{book.name}</h3>
                 <p className="text-sm text-gray-600 font-medium flex items-center gap-1">
@@ -241,7 +251,7 @@ export const BookSearch: React.FC = () => {
                   <p className="text-xs text-gray-500 truncate" title={book.publisher}>
                     Publisher: {book.publisher}
                   </p>
-                  
+
                   {typeof book.available_copies === 'number' && (
                     <div className="flex items-center gap-1.5 mt-1">
                       <Layers className="h-3.5 w-3.5 text-gray-400" />
@@ -254,8 +264,8 @@ export const BookSearch: React.FC = () => {
               </div>
 
               <div className="mt-auto pt-2">
-                <Button 
-                  variant={isSelected ? "secondary" : (isOutOfStock ? "ghost" : "outline")} 
+                <Button
+                  variant={isSelected ? "secondary" : (isOutOfStock ? "ghost" : "outline")}
                   className={`w-full justify-center ${isOutOfStock ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed hover:bg-gray-100' : 'border-primary text-primary hover:bg-blue-50'}`}
                   onClick={() => toggleBookSelection(bookId)}
                   disabled={isOutOfStock}
@@ -283,18 +293,18 @@ export const BookSearch: React.FC = () => {
             Showing page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span>
           </div>
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1 || loading}
             >
               <ChevronLeft className="h-4 w-4 mr-1" /> Previous
             </Button>
-            
-            <Button 
-              variant="outline" 
-              size="sm" 
+
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage >= totalPages || loading}
             >

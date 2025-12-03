@@ -27,8 +27,8 @@ print("\nCurrently Borrowed:")
 print(current)
 
 # 3️⃣ Overdue books
-overdue = history_service.get_overdue_books(reader_id)
-print("\nOverdue Books:")
+overdue = history_service.get_returned_books(reader_id)
+print("\nReturned Books:")
 print(overdue)
 
 # Close session

@@ -14,6 +14,7 @@ export const ReaderReturnRequest: React.FC = () => {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  // Initial fetch on mount
   useEffect(() => {
     fetchActiveLoans();
   }, []);
@@ -21,11 +22,9 @@ export const ReaderReturnRequest: React.FC = () => {
   const fetchActiveLoans = async () => {
     try {
       setLoading(true);
-
-      // Use the History API to get currently borrowed books
+      // Fetch currently borrowed books from the history API
       const response = await api.getCurrentlyBorrowed();
       setActiveLoans(response.currently_borrowed_books || []);
-
     } catch (err: any) {
       if (err.message && err.message.includes('Session expired')) {
         navigate('/login');
@@ -44,19 +43,20 @@ export const ReaderReturnRequest: React.FC = () => {
     setSuccessMsg('');
 
     try {
-        await api.requestBookReturn({
-            borrow_detail_id: book.borrow_detail_id
-        });
+      // Send POST request to backend
+      await api.requestBookReturn({
+        borrow_detail_id: book.borrow_detail_id
+      });
 
-        setSuccessMsg(`Return requested for "${book.title}". Please bring the book to the library.`);
+      setSuccessMsg(`Return requested for "${book.title}". Please bring the book to the library.`);
 
-        // Refresh to get the updated status
-        await fetchActiveLoans();
+      // Refresh the list to reflect the new status (e.g., PendingReturn)
+      await fetchActiveLoans();
 
     } catch (err: any) {
-        setError(err.message || "Failed to submit return request");
+      setError(err.message || "Failed to submit return request");
     } finally {
-        setProcessingId(null);
+      setProcessingId(null);
     }
   };
 
@@ -109,14 +109,14 @@ export const ReaderReturnRequest: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {activeLoans.map((book) => {
-             // Check if already requested (Assuming status in CurrentlyBorrowedBook reflects this)
+             // Check if already requested based on status
              const isPendingReturn = book.status === BorrowStatus.PENDING_RETURN;
 
              return (
-              <div key={book.borrow_detail_id} className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow">
+              <div key={book.borrow_detail_id} className={`bg-white rounded-lg border p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow ${book.is_overdue ? 'border-red-200 bg-red-50/10' : 'border-gray-200'}`}>
                 <div className="flex items-start gap-4">
-                  <div className="bg-blue-100 p-3 rounded-lg hidden sm:block">
-                    <BookOpen className="h-6 w-6 text-primary" />
+                  <div className={`p-3 rounded-lg hidden sm:block ${book.is_overdue ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-primary'}`}>
+                    <BookOpen className="h-6 w-6" />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-gray-900">{book.title}</h3>
@@ -137,7 +137,7 @@ export const ReaderReturnRequest: React.FC = () => {
                 </div>
 
                 {isPendingReturn ? (
-                  <div className="w-full sm:w-auto flex items-center justify-center gap-2 bg-yellow-50 text-yellow-700 border border-yellow-200 px-4 py-2 rounded-md font-medium">
+                  <div className="w-full sm:w-auto flex items-center justify-center gap-2 bg-yellow-50 text-yellow-700 border border-yellow-200 px-4 py-2 rounded-md font-medium cursor-default">
                     <Hourglass className="h-4 w-4" />
                     Return Requested
                   </div>

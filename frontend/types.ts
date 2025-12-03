@@ -22,7 +22,9 @@ export enum BorrowStatus {
   ACTIVE = 'Active',
   RETURNED = 'Returned',
   OVERDUE = 'Overdue',
-  REJECTED = 'Rejected'
+  REJECTED = 'Rejected',
+  PENDING_RETURN = 'PendingReturn',
+  LOST = 'Lost'
 }
 
 export interface User {
@@ -42,7 +44,7 @@ export interface BookSearchResult {
   name: string;
   author: string;
   publisher: string;
-  category?: string; 
+  category?: string;
   available_copies?: number; // Number of physical books available to borrow
 }
 
@@ -76,11 +78,11 @@ export interface HistoryBookInfo {
 
 // Top level history record (Matches provided JSON structure)
 export interface BorrowHistoryRecord {
-  borrow_slip_id: string;
-  borrow_detail_id: string;
+  borrow_slip_id?: string;
+  borrow_detail_id?: string;
   borrow_date: string;
   due_date: string | null;      // Slip Due Date
-  actual_return_date: string | null;
+  actual_return_date?: string | null;
   status: string;               // Slip Status
   book: HistoryBookInfo;        // Nested book details
 }
@@ -120,7 +122,7 @@ export interface OverdueResponse {
 export interface LoginResponse {
   access_token: string;
   token_type: string;
-  role?: string; 
+  role?: string;
 }
 
 export interface RequestedBook {
@@ -135,4 +137,52 @@ export interface BorrowRequest {
   status: BorrowStatus; // Updated to use the Enum
   books_count: number;
   books?: RequestedBook[];
+}
+
+// --- Return Service Types ---
+
+export interface ReturnRequest {
+  borrow_detail_id: string;
+  book_title: string;
+  reader_name: string;
+  request_date: string;
+  due_date: string;
+}
+
+// Reader initiates return
+export interface RequestReturnBookRequest {
+  borrow_detail_id: string;
+}
+
+// Librarian processes return (Generic or Good condition)
+export interface ProcessReturnRequest {
+  borrow_detail_id: string;
+  condition?: string;
+  damage_description?: string;
+  fine_amount?: number;
+}
+
+// Librarian reports damage
+export interface ProcessDamageBookRequest {
+  borrow_detail_id: string;
+  damage_description: string;
+  fine_amount?: number;
+}
+
+// Librarian reports lost
+export interface ProcessLostBookRequest {
+  borrow_detail_id: string;
+}
+
+export interface ReaderStatusResponse {
+  reader_id: string;
+  full_name: string;
+  card_type: string;
+  card_status: string;
+  borrow_limit: number;
+  current_borrowed_count: number;
+  available_slots: number;
+  can_borrow: boolean;
+  active_loans: CurrentlyBorrowedBook[];
+  overdue_loans: CurrentlyBorrowedBook[];
 }

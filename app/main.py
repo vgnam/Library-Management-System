@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.helpers.exception_handler import CustomException, http_exception_handler
 
 
+
 logging.config.fileConfig(settings.LOGGING_CONFIG_FILE, disable_existing_loggers=False)
 Base.metadata.create_all(bind=engine)
 
@@ -36,6 +37,7 @@ def get_application() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
 
     application.add_middleware(DBSessionMiddleware, db_url=settings.DATABASE_URL)
     application.include_router(router, prefix=settings.API_PREFIX)

@@ -1,34 +1,42 @@
+
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { Button } from '../components/Button';
-import { Check, X, RefreshCw, Book, Calendar, User } from 'lucide-react';
-import { BorrowRequest, BorrowStatus } from '../types';
+import { Check, X, RefreshCw, Book, Calendar, User, Clock, RotateCcw } from 'lucide-react';
+import { BorrowRequest, BorrowStatus, ReturnRequest } from '../types';
 
 export const LibrarianDashboard: React.FC = () => {
-  const [manualId, setManualId] = useState('');
+  const [activeTab, setActiveTab] = useState<'borrow' | 'return'>('borrow');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [requests, setRequests] = useState<BorrowRequest[]>([]);
+
+  // Data State
+  const [borrowRequests, setBorrowRequests] = useState<BorrowRequest[]>([]);
+  const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([]);
 
   useEffect(() => {
-    fetchRequests();
-  }, []);
+    fetchData();
+  }, [activeTab]);
 
-  const fetchRequests = async () => {
+  const fetchData = async () => {
     setRefreshing(true);
     try {
-      const data = await api.getPendingRequests();
-      setRequests(data);
+      if (activeTab === 'borrow') {
+        const data = await api.getPendingRequests();
+        setBorrowRequests(data);
+      } else {
+        const data = await api.getReturnRequests();
+        setReturnRequests(data);
+      }
     } catch (err: any) {
-      console.warn("Failed to fetch requests (API might be missing):", err);
-      setRequests([]); 
+      console.warn("Failed to fetch requests:", err);
     } finally {
       setRefreshing(false);
     }
   };
 
-  const handleAction = async (id: string, action: 'approve' | 'reject') => {
+  const handleApproveReject = async (id: string, action: 'approve' | 'reject') => {
     if (!window.confirm(`Are you sure you want to ${action} this request?`)) return;
 
     setLoading(true);
@@ -41,13 +49,25 @@ export const LibrarianDashboard: React.FC = () => {
         await api.rejectRequest(id);
         setMessage({ type: 'success', text: `Request rejected.` });
       }
-      
-      // Refresh list after action
-      fetchRequests();
-      if (manualId === id) setManualId('');
-      
+      fetchData();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || `Failed to ${action} request.` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQuickReturn = async (returnReq: ReturnRequest) => {
+    if (!window.confirm(`Mark "${returnReq.book_title}" as Returned (Good Condition)?`)) return;
+
+    setLoading(true);
+    setMessage(null);
+    try {
+      await api.processReturn(returnReq.borrow_detail_id);
+      setMessage({ type: 'success', text: `Book returned successfully.` });
+      fetchData();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || `Failed to return book.` });
     } finally {
       setLoading(false);
     }
@@ -75,11 +95,11 @@ export const LibrarianDashboard: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Librarian Dashboard</h1>
-          <p className="text-gray-500 mt-1">Manage borrowing requests and returns</p>
+          <p className="text-gray-500 mt-1">Manage borrowing approvals and returns</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchRequests} disabled={refreshing}>
+        <Button variant="outline" size="sm" onClick={fetchData} disabled={refreshing}>
           <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          Refresh Queue
+          Refresh
         </Button>
       </div>
 
@@ -90,95 +110,123 @@ export const LibrarianDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Manual Action Box */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Action</h3>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <input 
-            type="text" 
-            placeholder="Enter Borrow Slip ID manually..." 
-            value={manualId}
-            onChange={(e) => setManualId(e.target.value)}
-            className="flex-grow border border-gray-300 rounded-md px-3 py-2 outline-none focus:ring-2 focus:ring-primary"
-          />
-          <div className="flex gap-2">
-            <Button onClick={() => handleAction(manualId, 'approve')} disabled={!manualId || loading}>Approve</Button>
-            <Button onClick={() => handleAction(manualId, 'reject')} variant="danger" disabled={!manualId || loading}>Reject</Button>
-          </div>
-        </div>
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex gap-6">
+          <button
+            onClick={() => setActiveTab('borrow')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'borrow'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Borrow Requests {borrowRequests.length > 0 && `(${borrowRequests.length})`}
+          </button>
+          <button
+            onClick={() => setActiveTab('return')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'return'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Return Requests {returnRequests.length > 0 && `(${returnRequests.length})`}
+          </button>
+        </nav>
       </div>
 
-      {/* Pending Requests List */}
-      <div className="space-y-4">
-        <h3 className="font-semibold text-gray-800 text-lg">Pending Requests ({requests.length})</h3>
-        
-        {requests.length === 0 ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-12 text-center text-gray-500">
-            {refreshing ? 'Loading requests...' : 'No pending requests found. Good job!'}
+      {/* CONTENT AREA */}
+      <div>
+        {activeTab === 'borrow' ? (
+          /* --- BORROW REQUESTS --- */
+          <div className="space-y-4">
+            {borrowRequests.length === 0 ? (
+              <div className="bg-white rounded-lg border border-gray-200 p-12 text-center text-gray-500">
+                {refreshing ? 'Loading requests...' : 'No pending borrow requests.'}
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {borrowRequests.map((req) => (
+                  <div key={req.borrow_slip_id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 transition hover:shadow-md">
+                    <div className="flex flex-col md:flex-row justify-between gap-4">
+                      <div className="flex-grow space-y-3">
+                        <div className="flex items-center gap-2">
+                            {getStatusBadge(req.status)}
+                            <span className="text-xs text-gray-400 font-mono">{req.borrow_slip_id}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-700">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-gray-400" />
+                            <span className="font-medium">{req.reader_name || 'Unknown Reader'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-gray-400" />
+                            <span>{new Date(req.request_date).toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded-md">
+                            <div className="flex items-center gap-2 mb-2">
+                                 <Book className="h-4 w-4 text-gray-500" />
+                                 <span className="text-sm font-medium text-gray-900">Requested Books ({req.books_count}):</span>
+                            </div>
+                            <ul className="list-disc list-inside text-sm text-gray-600 pl-1">
+                                {req.books?.map((book, idx) => (
+                                    <li key={idx} className="truncate">{book.name || book.book_id}</li>
+                                ))}
+                            </ul>
+                        </div>
+                      </div>
+                      <div className="flex md:flex-col justify-end gap-2 md:w-32 md:border-l md:border-gray-100 md:pl-4">
+                         <Button size="sm" onClick={() => handleApproveReject(req.borrow_slip_id, 'approve')} disabled={loading} className="w-full bg-green-600 hover:bg-green-700">Approve</Button>
+                         <Button size="sm" variant="danger" onClick={() => handleApproveReject(req.borrow_slip_id, 'reject')} disabled={loading} className="w-full">Reject</Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
-          <div className="grid gap-4">
-            {requests.map((req) => (
-              <div key={req.borrow_slip_id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 transition hover:shadow-md">
-                <div className="flex flex-col md:flex-row justify-between gap-4">
-                  {/* Info Section */}
-                  <div className="flex-grow space-y-3">
-                    <div className="flex items-center gap-2">
-                        {getStatusBadge(req.status)}
-                        <span className="text-xs text-gray-400 font-mono">{req.borrow_slip_id}</span>
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-700">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-gray-400" />
-                        <span className="font-medium">{req.reader_name || 'Unknown Reader'}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-gray-400" />
-                        <span>{new Date(req.request_date).toLocaleString()}</span>
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-50 p-3 rounded-md">
-                        <div className="flex items-center gap-2 mb-2">
-                             <Book className="h-4 w-4 text-gray-500" />
-                             <span className="text-sm font-medium text-gray-900">Requested Books ({req.books_count}):</span>
-                        </div>
-                        <ul className="list-disc list-inside text-sm text-gray-600 pl-1">
-                            {req.books && req.books.length > 0 ? (
-                                req.books.map((book, idx) => (
-                                    <li key={idx} className="truncate">{book.name || book.book_id}</li>
-                                ))
-                            ) : (
-                                <li>{req.books_count} items (Details unavailable)</li>
-                            )}
-                        </ul>
-                    </div>
-                  </div>
-
-                  {/* Actions Section */}
-                  <div className="flex md:flex-col justify-end gap-2 md:w-32 md:border-l md:border-gray-100 md:pl-4">
-                     <Button 
-                        size="sm" 
-                        onClick={() => handleAction(req.borrow_slip_id, 'approve')}
-                        disabled={loading}
-                        className="w-full justify-center bg-green-600 hover:bg-green-700"
-                      >
-                        Approve
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="danger"
-                        onClick={() => handleAction(req.borrow_slip_id, 'reject')}
-                        disabled={loading}
-                        className="w-full justify-center"
-                      >
-                        Reject
-                      </Button>
-                  </div>
-                </div>
+          /* --- RETURN REQUESTS --- */
+          <div className="space-y-4">
+             {returnRequests.length === 0 ? (
+              <div className="bg-white rounded-lg border border-gray-200 p-12 text-center text-gray-500">
+                {refreshing ? 'Loading requests...' : 'No return requests found.'}
               </div>
-            ))}
+            ) : (
+              <div className="grid gap-4">
+                {returnRequests.map((req) => (
+                   <div key={req.borrow_detail_id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 transition hover:shadow-md flex flex-col md:flex-row justify-between gap-4">
+                      <div className="space-y-2">
+                         <div className="flex items-center gap-2">
+                             <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded">RETURN REQUESTED</span>
+                         </div>
+                         <h4 className="font-bold text-lg text-gray-900">{req.book_title}</h4>
+                         <div className="flex items-center gap-4 text-sm mt-2">
+                            <div className="flex items-center gap-1 text-gray-700">
+                               <User className="h-4 w-4 text-gray-400" />
+                               {req.reader_name}
+                            </div>
+                            <div className="flex items-center gap-1 text-gray-700">
+                               <Calendar className="h-4 w-4 text-gray-400" />
+                               Req Date: {req.request_date ? new Date(req.request_date).toLocaleDateString() : 'N/A'}
+                            </div>
+                            <div className="flex items-center gap-1 text-gray-700">
+                               <Clock className="h-4 w-4 text-gray-400" />
+                               Due: {req.due_date ? new Date(req.due_date).toLocaleDateString() : 'N/A'}
+                            </div>
+                         </div>
+                      </div>
+                      <div className="flex items-center md:w-48">
+                         <Button onClick={() => handleQuickReturn(req)} disabled={loading} className="w-full flex items-center justify-center gap-2">
+                            <RotateCcw className="h-4 w-4" /> Process Return
+                         </Button>
+                      </div>
+                   </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

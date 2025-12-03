@@ -1,4 +1,6 @@
-# Import all the models, so that Base has them before being
-# imported by Alembic
-from app.models.model_base import Base  # noqa
-from app.models.model_user import User  # noqa
+from app.db.base import Base
+
+from app.models.model_user import User
+from app.models.model_reader import Reader
+from app.models.model_librarian import Librarian
+from app.models.model_manager import Manager

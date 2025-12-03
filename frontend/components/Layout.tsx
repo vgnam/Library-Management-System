@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { BookOpen, User as UserIcon, LogOut, Menu, X, Sparkles } from 'lucide-react';
@@ -58,10 +59,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <>
                     <NavLink to="/">Browse Collection</NavLink>
                     <NavLink to="/borrow-history">My Loans</NavLink>
+                    <NavLink to="/return-request">Return Books</NavLink>
                   </>
                 )}
                 {token && userRole === UserRole.LIBRARIAN && (
-                   <NavLink to="/librarian/dashboard">Dashboard</NavLink>
+                   <>
+                    <NavLink to="/librarian/dashboard">Dashboard</NavLink>
+                    <NavLink to="/librarian/return">Return Books</NavLink>
+                   </>
                 )}
               </div>
             </div>
@@ -104,10 +109,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <>
                     <Link to="/" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Browse Collection</Link>
                     <Link to="/borrow-history" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">My Loans</Link>
+                    <Link to="/return-request" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Return Books</Link>
                   </>
                 )}
                 {token && userRole === UserRole.LIBRARIAN && (
+                  <>
                    <Link to="/librarian/dashboard" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Dashboard</Link>
+                   <Link to="/librarian/return" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Return Books</Link>
+                  </>
                 )}
                 {!token && (
                   <>

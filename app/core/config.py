@@ -1,6 +1,8 @@
 # settings.py
+# settings.py
 import os
 from pydantic import BaseSettings
+from typing import List
 from typing import List
 
 

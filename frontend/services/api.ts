@@ -1,6 +1,6 @@
 
 import { API_BASE_URL } from '../constants';
-import { LoginResponse, SearchResponse, UserRole, BorrowRequest, BorrowStatus, HistoryResponse, CurrentBorrowedResponse, OverdueResponse } from '../types';
+import { LoginResponse, SearchResponse, UserRole, BorrowRequest, BorrowStatus, HistoryResponse, CurrentBorrowedResponse, OverdueResponse, RequestReturnBookRequest, ProcessDamageBookRequest, ProcessLostBookRequest, ReaderStatusResponse, ReturnRequest } from '../types';
 
 class ApiService {
   private token: string | null = localStorage.getItem('token');
@@ -15,11 +15,28 @@ class ApiService {
     localStorage.removeItem('token');
     localStorage.removeItem('userRole');
     // Optional: Force reload to clear application state
-    // window.location.href = '/login'; 
+    // window.location.href = '/login';
   }
 
   getToken() {
     return this.token;
+  }
+
+  // Safely extract User ID (sub) from JWT token without calling API
+  getUserIdFromToken(): string | null {
+    if (!this.token) return null;
+    try {
+      const base64Url = this.token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      const payload = JSON.parse(jsonPayload);
+      return payload.sub || payload.user_id || null;
+    } catch (e) {
+      console.error("Failed to decode token", e);
+      return null;
+    }
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -62,9 +79,9 @@ class ApiService {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      
+
       let errorMessage = 'API Request Failed';
-      
+
       if (errorData.detail) {
         if (typeof errorData.detail === 'string') {
           errorMessage = errorData.detail;
@@ -99,7 +116,7 @@ class ApiService {
 
   async login(username: string, password: string, role: UserRole): Promise<LoginResponse> {
     const endpoint = `/auth/${role}/login`;
-    
+
     // Use URLSearchParams for application/x-www-form-urlencoded
     const params = new URLSearchParams();
     params.append('username', username);
@@ -120,7 +137,7 @@ class ApiService {
     }
 
     const data = await response.json();
-    
+
     if (data.data && data.data.access_token) {
       return data.data;
     } else if (data.access_token) {
@@ -150,29 +167,36 @@ class ApiService {
     return res.data ? res.data : res;
   }
 
+  // --- Readers ---
+
+  async getReaderStatus(readerId: string): Promise<ReaderStatusResponse> {
+    const res = await this.request<any>(`/returns/reader-status/${readerId}`);
+    return res.data || res;
+  }
+
   // --- Books ---
 
   async searchBooks(query: { keyword?: string; page?: number }): Promise<SearchResponse> {
     const params = new URLSearchParams();
-    
+
     // Only append keyword if present, otherwise API returns all/paged
     if (query.keyword) {
       params.append('keyword', query.keyword);
     }
-    
+
     if (query.page) {
       params.append('page', query.page.toString());
     }
 
     const res = await this.request<any>(`/books/search?${params.toString()}`);
-    return res.data || res; 
+    return res.data || res;
   }
 
   // --- Borrowing ---
 
   async createBorrowRequest(bookIds: string[]): Promise<any> {
-    const payload = { 
-      book_title_ids: bookIds 
+    const payload = {
+      book_title_ids: bookIds
     };
 
     return this.request(`/books/borrow-request`, {
@@ -212,22 +236,81 @@ class ApiService {
     });
   }
 
-  async returnRequest(borrowSlipId: string): Promise<any> {
-    return this.request(`/books/borrow-request/${borrowSlipId}/return`, {
-      method: 'PUT',
+  // --- Return Service (Updated to match backend) ---
+
+  async getReturnRequests(): Promise<ReturnRequest[]> {
+    // Correct endpoint based on provided api_return.py
+    const res = await this.request<any>(`/returns/pending-returns`);
+    return res.data || res || [];
+  }
+
+  // READER initiates return request
+  async requestBookReturn(payload: RequestReturnBookRequest): Promise<any> {
+    const res = await this.request<any>(`/returns/request-return`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
+    return res.data || res;
+  }
+
+  // LIBRARIAN processes return (Good condition)
+  async processReturn(borrowDetailId: string): Promise<any> {
+    const payload = {
+        borrow_detail_id: borrowDetailId,
+        condition: 'good'
+    };
+
+    const res = await this.request<any>(`/returns/process-return`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return res.data || res;
+  }
+
+  // LIBRARIAN reports damage
+  async reportDamage(payload: ProcessDamageBookRequest): Promise<any> {
+    const backendPayload = {
+        borrow_detail_id: payload.borrow_detail_id,
+        condition: 'damaged',
+        damage_description: payload.damage_description,
+        custom_fine: payload.fine_amount
+    };
+
+    const res = await this.request<any>(`/returns/process-return`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(backendPayload)
+    });
+    return res.data || res;
+  }
+
+  // LIBRARIAN reports lost
+  async reportLost(payload: ProcessLostBookRequest): Promise<any> {
+    const backendPayload = {
+        borrow_detail_id: payload.borrow_detail_id,
+        condition: 'lost'
+    };
+
+    const res = await this.request<any>(`/returns/process-return`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(backendPayload)
+    });
+    return res.data || res;
   }
 
   // --- History & Stats ---
 
   async getBorrowHistory(options: { status?: string; page?: number; pageSize?: number }): Promise<HistoryResponse> {
     const params = new URLSearchParams();
-    
+
     if (options.status && options.status !== 'All') {
       // Backend expects lowercase enum values for history
       params.append('status', options.status.toLowerCase());
     }
-    
+
     if (options.page) {
       params.append('page', options.page.toString());
     }
@@ -237,11 +320,11 @@ class ApiService {
     }
 
     const res = await this.request<any>(`/history/?${params.toString()}`);
-    
+
     // Handle wrapped data response or direct list
     if (res.data) return res.data;
-    
-    // Fallback if backend returns generic list (though new structure is object)
+
+    // Fallback if backend returns generic list
     if (Array.isArray(res)) {
        return {
         total: res.length,
@@ -251,7 +334,7 @@ class ApiService {
         total_pages: 1
       };
     }
-    
+
     return res;
   }
 

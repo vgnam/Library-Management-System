@@ -6,21 +6,7 @@ from fastapi.responses import JSONResponse
 from app.schemas.sche_base import ResponseSchemaBase
 
 
-class ExceptionType(enum.Enum):
-    MS_UNAVAILABLE = 500, '990', 'Hệ thống đang bảo trì, quý khách vui lòng thử lại sau'
-    MS_INVALID_API_PATH = 500, '991', 'Hệ thống đang bảo trì, quý khách vui lòng thử lại sau'
-    DATA_RESPONSE_MALFORMED = 500, '992', 'Có lỗi xảy ra, vui lòng liên hệ admin!'
 
-    def __new__(cls, *args, **kwds):
-        value = len(cls.__members__) + 1
-        obj = object.__new__(cls)
-        obj._value_ = value
-        return obj
-
-    def __init__(self, http_code, code, message):
-        self.http_code = http_code
-        self.code = code
-        self.message = message
 
 
 class CustomException(Exception):

@@ -115,7 +115,7 @@ class ReturnService:
         days_overdue = (return_datetime.date() - due_date.date()).days if is_overdue else 0
         late_fee = days_overdue * 5000 if is_overdue else 0
 
-        detail.actual_return_date = return_datetime  # ← THÊM DÒNG NÀY
+        detail.real_return_date = return_datetime  # ← THÊM DÒNG NÀY
 
         condition_fee = 0
         if condition == "damaged":

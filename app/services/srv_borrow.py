@@ -4,6 +4,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 import uuid
 from sqlalchemy import desc
+import pytz
 
 from app.models.model_book_title import BookTitle
 from app.models.model_borrow import BorrowSlip, BorrowSlipDetail, BorrowStatusEnum
@@ -12,7 +13,10 @@ from app.models.model_reading_card import ReadingCard, CardTypeEnum, CardStatusE
 from app.models.model_book import Book
 from app.models.model_librarian import Librarian
 
+from datetime import datetime, timezone, timedelta
 
+# Tạo timezone UTC+7
+tz_vn = timezone(timedelta(hours=7))
 class BorrowService:
     """Service for handling borrow request operations"""
 
@@ -75,7 +79,7 @@ class BorrowService:
             bs_id=borrow_slip_id,
             reader_id=reader.reader_id,
             librarian_id=None,
-            borrow_date=datetime.utcnow(),
+            borrow_date=datetime.now(tz=timezone(timedelta(hours=7))),
             status=BorrowStatusEnum.pending
         )
         db.session.add(borrow_slip)
@@ -161,8 +165,7 @@ class BorrowService:
 
         loan_days = 60 if card.card_type == CardTypeEnum.vip else 45
         loan_period = timedelta(days=loan_days)
-        current_time = datetime.utcnow()
-
+        current_time = datetime.now(tz=timezone(timedelta(hours=7)))
         # Cập nhật phiếu
         borrow_slip.status = BorrowStatusEnum.active
         borrow_slip.librarian_id = librarian.lib_id
@@ -198,7 +201,7 @@ class BorrowService:
 
     @staticmethod
     def reject_borrow_request(borrow_slip_id: str, librarian: Librarian):
-        """Reject a pending borrow request"""
+        """Reject a pending borrow request and update all details to 'rejected'"""
         borrow_slip = db.session.query(BorrowSlip).filter(
             BorrowSlip.bs_id == borrow_slip_id
         ).first()
@@ -209,8 +212,16 @@ class BorrowService:
         if borrow_slip.status != BorrowStatusEnum.pending:
             raise HTTPException(status_code=400, detail="Borrow slip is not pending")
 
+        # Cập nhật trạng thái phiếu mượn
         borrow_slip.status = BorrowStatusEnum.rejected
-        # Không cần set being_borrowed = False vì lúc tạo request chưa set True
+
+        details = db.session.query(BorrowSlipDetail).filter(
+            BorrowSlipDetail.borrow_slip_id == borrow_slip_id
+        ).all()
+
+        for detail in details:
+            detail.status = BorrowStatusEnum.rejected
+
         db.session.commit()
 
         return {

@@ -42,7 +42,4 @@ class DataResponse(ResponseSchemaBase, GenericModel, Generic[T]):
         return self
 
 
-class MetadataSchema(BaseModel):
-    current_page: int
-    page_size: int
-    total_items: int
+

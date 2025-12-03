@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { BorrowHistoryRecord, HistoryBookInfo } from '../types';
@@ -22,12 +21,14 @@ export const BorrowHistory: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
   
   const navigate = useNavigate();
   const PAGE_SIZE = 10;
 
   useEffect(() => {
+    console.log('Fetching history for filter:', activeFilter, 'page:', currentPage);
     fetchHistory();
   }, [activeFilter, currentPage]);
 
@@ -39,15 +40,25 @@ export const BorrowHistory: React.FC = () => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const res = await api.getBorrowHistory({
-        status: activeFilter,
+      const params: any = {
         page: currentPage,
         pageSize: PAGE_SIZE
-      });
+      };
+      
+      // Only add status if it's not "All"
+      if (activeFilter !== 'All') {
+        params.status = activeFilter;
+      }
+      
+      console.log('API params:', params);
+      const res = await api.getBorrowHistory(params);
+      console.log('API response:', res);
       
       setHistory(res.history || []);
-      setTotalPages(res.total_pages || Math.ceil((res.total || 0) / PAGE_SIZE) || 1);
+      setTotalPages(res.total_pages || 1);
+      setTotalRecords(res.total || 0);
     } catch (err: any) {
+      console.error('Error fetching history:', err);
       if (err.message && err.message.includes('Session expired')) {
         navigate('/login');
       }
@@ -74,8 +85,16 @@ export const BorrowHistory: React.FC = () => {
   };
 
   const handleTabChange = (status: string) => {
+    console.log('Changing tab to:', status);
     setActiveFilter(status);
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset to page 1 when changing filter
+  };
+
+  const handlePageChange = (newPage: number) => {
+    console.log('Changing page to:', newPage);
+    setCurrentPage(newPage);
+    // Scroll to top when changing pages
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const formatDate = (dateString?: string | null) => {
@@ -209,7 +228,6 @@ export const BorrowHistory: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {/* Direct iteration over history records (each record is a book detail) */}
                 {history.map((record) => {
                   const book = record.book;
                   return (
@@ -231,7 +249,6 @@ export const BorrowHistory: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Borrow Date */}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex items-center gap-1.5">
                           <Calendar className="h-4 w-4 text-gray-400" />
@@ -239,11 +256,9 @@ export const BorrowHistory: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Deadline / Due Date (From Slip) */}
                       <td className="px-6 py-4 whitespace-nowrap">
                          <div className="flex flex-col">
                            <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
-                              {/* Use due_date from record (slip) */}
                               {record.due_date ? (
                                   <>
                                       <Clock className="h-4 w-4 text-gray-400" />
@@ -256,7 +271,6 @@ export const BorrowHistory: React.FC = () => {
                               )}
                            </div>
 
-                           {/* Overdue/Time Left Context */}
                            {record.due_date && !book.actual_return_date && (record.status === 'Active' || book.status === 'Active') && (
                              book.is_overdue ? (
                                <span className="text-xs text-red-600 font-bold mt-0.5">
@@ -269,7 +283,6 @@ export const BorrowHistory: React.FC = () => {
                          </div>
                       </td>
 
-                      {/* Actual Return Date (From Book Details or top-level if sync) */}
                       <td className="px-6 py-4 whitespace-nowrap">
                          {book.actual_return_date ? (
                            <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
@@ -281,7 +294,6 @@ export const BorrowHistory: React.FC = () => {
                          )}
                       </td>
 
-                      {/* Status */}
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(book, record.status)}
                       </td>
@@ -295,25 +307,58 @@ export const BorrowHistory: React.FC = () => {
       </div>
 
       {/* Pagination */}
-      {history.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-200 pt-4">
+      {!loading && history.length > 0 && totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white border border-gray-200 rounded-lg p-4">
           <div className="text-sm text-gray-600">
-            Page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span>
+            Showing <span className="font-medium">{((currentPage - 1) * PAGE_SIZE) + 1}</span> to{' '}
+            <span className="font-medium">{Math.min(currentPage * PAGE_SIZE, totalRecords)}</span> of{' '}
+            <span className="font-medium">{totalRecords}</span> results
           </div>
-          <div className="flex gap-2">
+          
+          <div className="flex items-center gap-2">
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1 || loading}
             >
               <ChevronLeft className="h-4 w-4 mr-1" /> Previous
             </Button>
             
+            <div className="flex items-center gap-1">
+              {/* Show page numbers */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => handlePageChange(pageNum)}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                      currentPage === pageNum
+                        ? 'bg-primary text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage >= totalPages || loading}
             >
               Next <ChevronRight className="h-4 w-4 ml-1" />

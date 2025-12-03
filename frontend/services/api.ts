@@ -1,4 +1,3 @@
-
 import { API_BASE_URL } from '../constants';
 import { LoginResponse, SearchResponse, UserRole, BorrowRequest, BorrowStatus, HistoryResponse, CurrentBorrowedResponse, OverdueResponse, RequestReturnBookRequest, ProcessDamageBookRequest, ProcessLostBookRequest, ReaderStatusResponse, ReturnRequest } from '../types';
 
@@ -303,7 +302,7 @@ class ApiService {
 
   // --- History & Stats ---
 
-  async getBorrowHistory(options: { status?: string; page?: number; pageSize?: number }): Promise<HistoryResponse> {
+  async getBorrowHistory(options: { status?: string; page?: number; page_size?: number }): Promise<HistoryResponse> {
     const params = new URLSearchParams();
 
     if (options.status && options.status !== 'All') {
@@ -315,8 +314,8 @@ class ApiService {
       params.append('page', options.page.toString());
     }
 
-    if (options.pageSize) {
-      params.append('page_size', options.pageSize.toString());
+    if (options.page_size) {
+      params.append('page_size', options.page_size.toString());
     }
 
     const res = await this.request<any>(`/history/?${params.toString()}`);
@@ -329,7 +328,7 @@ class ApiService {
        return {
         total: res.length,
         page: options.page || 1,
-        page_size: options.pageSize || 10,
+        page_size: options.page_size || 10,
         history: res,
         total_pages: 1
       };

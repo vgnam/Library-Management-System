@@ -55,14 +55,14 @@ if __name__ == '__main__':
     #             methods = ",".join(route.methods)
     #             print(f"{methods:10} {route.path}")
 
-    # from fastapi_sqlalchemy import db
-    # from app.services.srv_history import HistoryService
-    # from app.services.srv_return import ReturnService
-    # reader_id = "5003dca9-1ba7-438b-935d-c4bb3a631265"
-    # history_service = HistoryService()
-    #
-    # with db():
-    #     overdue = history_service.get_currently_borrowed_books(reader_id)
-    #     print("\nReturned Books:", overdue)
+    from fastapi_sqlalchemy import db
+    from app.services.srv_history import HistoryService
+    from app.services.srv_return import ReturnService
+    reader_id = "5003dca9-1ba7-438b-935d-c4bb3a631265"
+    history_service = HistoryService()
+
+    with db():
+        overdue = history_service.get_overdue_books(reader_id)
+        print("\nHistory Books:", overdue)
 
     uvicorn.run(app, host="0.0.0.0", port=8000)

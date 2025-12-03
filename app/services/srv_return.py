@@ -110,10 +110,12 @@ class ReturnService:
 
         # Calculate fees
         return_datetime = datetime.utcnow()
-        due_date = detail.return_date
+        due_date = detail.return_date  # đây là due_date
         is_overdue = return_datetime > due_date
         days_overdue = (return_datetime.date() - due_date.date()).days if is_overdue else 0
         late_fee = days_overdue * 5000 if is_overdue else 0
+
+        detail.actual_return_date = return_datetime  # ← THÊM DÒNG NÀY
 
         condition_fee = 0
         if condition == "damaged":
@@ -165,12 +167,28 @@ class ReturnService:
         reader = db.session.query(Reader).filter(Reader.reader_id == slip.reader_id).first()
         user_id = reader.user_id if reader else "unknown"
 
+        # response = {
+        #     "message": "Book return processed successfully",
+        #     "borrow_detail_id": borrow_detail_id,
+        #     "book_id": detail.book_id,
+        #     "user_id": user_id,
+        #     "return_date": return_datetime.isoformat(),
+        #     "condition": condition,
+        #     "is_overdue": is_overdue,
+        #     "days_overdue": days_overdue,
+        #     "late_fee": late_fee,
+        #     "condition_fee": condition_fee,
+        #     "total_fee": total_fee,
+        #     "status": detail.status.value,
+        # }
+
         response = {
             "message": "Book return processed successfully",
             "borrow_detail_id": borrow_detail_id,
             "book_id": detail.book_id,
             "user_id": user_id,
-            "return_date": return_datetime.isoformat(),
+            "return_date": return_datetime.isoformat(),  # actual return date
+            "due_date": due_date.isoformat() if due_date else None,  # thêm due_date vào response
             "condition": condition,
             "is_overdue": is_overdue,
             "days_overdue": days_overdue,
@@ -179,6 +197,7 @@ class ReturnService:
             "total_fee": total_fee,
             "status": detail.status.value,
         }
+
         if condition == "damaged":
             response["damage_description"] = damage_description
         if penalty_ids:

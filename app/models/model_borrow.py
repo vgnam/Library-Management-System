@@ -36,9 +36,8 @@ class BorrowSlipDetail(Base):
     id = Column(String(50), primary_key=True)
     borrow_slip_id = Column(String(50), ForeignKey("borrowslips.bs_id"), nullable=False)
     book_id = Column(String(50), ForeignKey("books.book_id"), nullable=False)
-    # due_date = Column(DateTime, nullable=True)  # When book should be returned
-    return_date = Column(DateTime, nullable=True)  # When book was actually returned
-
+    return_date = Column(DateTime, nullable=True)
+    real_return_date = Column(DateTime, nullable=True)
     status = Column(Enum(BorrowStatusEnum), default=BorrowStatusEnum.active)
 
 

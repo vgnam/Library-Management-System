@@ -1,10 +1,8 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { BookOpen, User as UserIcon, LogOut, Menu, X, Sparkles } from 'lucide-react';
+import { BookOpen, User as UserIcon, LogOut, Menu, X } from 'lucide-react';
 import { api } from '../services/api';
 import { UserRole } from '../types';
-import { AIChat } from './AIChat';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -31,7 +29,6 @@ const NavLink = ({ to, children }: { to: string; children?: React.ReactNode }) =
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [showChat, setShowChat] = useState(false);
   
   const token = api.getToken();
   const userRole = localStorage.getItem('userRole') as UserRole | null;
@@ -65,7 +62,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 {token && userRole === UserRole.LIBRARIAN && (
                    <>
                     <NavLink to="/librarian/dashboard">Dashboard</NavLink>
-                    <NavLink to="/librarian/return">Return Books</NavLink>
                    </>
                 )}
               </div>
@@ -115,7 +111,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 {token && userRole === UserRole.LIBRARIAN && (
                   <>
                    <Link to="/librarian/dashboard" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Dashboard</Link>
-                   <Link to="/librarian/return" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Return Books</Link>
                   </>
                 )}
                 {!token && (
@@ -135,21 +130,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
-
-      {/* AI Assistant FAB */}
-      <div className="fixed bottom-6 right-6 z-50">
-        {!showChat && (
-          <button
-            onClick={() => setShowChat(true)}
-            className="bg-secondary hover:bg-yellow-500 text-white rounded-full p-4 shadow-xl transition-transform hover:scale-105 flex items-center justify-center"
-          >
-            <Sparkles className="h-6 w-6" />
-          </button>
-        )}
-        {showChat && (
-          <AIChat onClose={() => setShowChat(false)} />
-        )}
-      </div>
 
       <footer className="bg-white border-t border-gray-200 mt-auto">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">

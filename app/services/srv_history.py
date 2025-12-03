@@ -17,6 +17,113 @@ from app.models.model_reader import Reader
 
 class HistoryService:
 
+    # @staticmethod
+    # def get_borrow_history(
+    #         reader_id: str,
+    #         status: str = None,
+    #         page: int = 1,
+    #         page_size: int = 10
+    # ) -> dict:
+    #     """Get borrow history with pagination — using BorrowSlipDetail.status"""
+    #     reader = db.session.query(Reader).filter(Reader.reader_id == reader_id).first()
+    #     if not reader:
+    #         raise HTTPException(status_code=404, detail="Reader not found")
+    #
+    #     # Query using BorrowSlipDetail.status (NOT BorrowSlip.status)
+    #     query = db.session.query(
+    #         BorrowSlip.bs_id,
+    #         BorrowSlip.borrow_date,
+    #         BorrowSlip.return_date,  # still kept for backward compatibility (slip-level)
+    #         BorrowSlipDetail.id,
+    #         BorrowSlipDetail.book_id,
+    #         BorrowSlipDetail.return_date.label('detail_due_date'),
+    #         sa.cast(BorrowSlipDetail.status, sa.String).label('detail_status_str')  # ← FROM DETAIL
+    #     ).select_from(BorrowSlip).join(
+    #         BorrowSlipDetail, BorrowSlip.bs_id == BorrowSlipDetail.borrow_slip_id
+    #     ).filter(BorrowSlip.reader_id == reader_id)
+    #
+    #     # Filter by BorrowSlipDetail.status if provided
+    #     if status:
+    #         query = query.filter(sa.cast(BorrowSlipDetail.status, sa.String) == status)
+    #
+    #     total = query.count()
+    #     raw_results = query.order_by(BorrowSlip.borrow_date.desc()).offset((page - 1) * page_size).limit(
+    #         page_size).all()
+    #
+    #     # Load books
+    #     book_ids = [result.book_id for result in raw_results]
+    #     books = db.session.query(Book).filter(Book.book_id.in_(book_ids)).all()
+    #     book_dict = {b.book_id: b for b in books}
+    #
+    #     history = []
+    #     for result in raw_results:
+    #         book = book_dict.get(result.book_id)
+    #         detail_status = str(result.detail_status_str).lower()
+    #
+    #         # Determine display status and overdue info based on DETAIL status
+    #         is_overdue = False
+    #         days_overdue = 0
+    #         display_status = str(result.detail_status_str).capitalize()
+    #
+    #         if detail_status == "pending":
+    #             display_status = "Pending"  # borrowing request
+    #         elif detail_status == "active":
+    #             # Check if overdue (not returned and past due)
+    #             if result.detail_due_date and datetime.utcnow() > result.detail_due_date:
+    #                 display_status = "Overdue"
+    #                 is_overdue = True
+    #                 days_overdue = (datetime.utcnow().date() - result.detail_due_date.date()).days
+    #             else:
+    #                 display_status = "Active"
+    #         elif detail_status == "pendingreturn":
+    #             display_status = "Pending Return"
+    #         elif detail_status == "returned":
+    #             # Check if returned late
+    #             if result.detail_due_date and result.return_date and result.return_date > result.detail_due_date:
+    #                 display_status = "Overdue"
+    #                 is_overdue = True
+    #                 days_overdue = (result.return_date.date() - result.detail_due_date.date()).days
+    #             else:
+    #                 display_status = "Returned"
+    #         elif detail_status == "lost":
+    #             display_status = "Lost"
+    #         elif detail_status == "rejected":
+    #             display_status = "Rejected"
+    #         elif detail_status == "overdue":
+    #             # If status is explicitly "overdue", mark as such
+    #             display_status = "Overdue"
+    #             is_overdue = True
+    #             if result.detail_due_date:
+    #                 days_overdue = (datetime.utcnow().date() - result.detail_due_date.date()).days
+    #
+    #         history.append({
+    #             "borrow_slip_id": result.bs_id,
+    #             "borrow_detail_id": result.id,
+    #             "borrow_date": result.borrow_date.isoformat(),
+    #             "due_date": result.detail_due_date.isoformat() if result.detail_due_date else None,
+    #             "actual_return_date": result.return_date.isoformat() if result.return_date else None,
+    #             "status": display_status,  # ← from detail, not slip
+    #             "book": {
+    #                 "book_id": result.book_id,
+    #                 "title": book.book_title.name if book and book.book_title else "Unknown",
+    #                 "author": book.book_title.author if book and book.book_title else None,
+    #                 "due_date": result.detail_due_date.isoformat() if result.detail_due_date else None,
+    #                 "actual_return_date": result.return_date.isoformat() if result.return_date else None,
+    #                 "is_returned": detail_status == "returned",
+    #                 "is_overdue": is_overdue,
+    #                 "days_overdue": days_overdue,
+    #                 "status": display_status  # ← consistent
+    #             }
+    #         })
+    #
+    #     return {
+    #         "total": total,
+    #         "page": page,
+    #         "page_size": page_size,
+    #         "total_pages": (total + page_size - 1) // page_size,
+    #         "history": history
+    #     }
+
     @staticmethod
     def get_borrow_history(
             reader_id: str,
@@ -24,98 +131,140 @@ class HistoryService:
             page: int = 1,
             page_size: int = 10
     ) -> dict:
-        """Get borrow history with pagination — using BorrowSlipDetail.status"""
-        reader = db.session.query(Reader).filter(Reader.reader_id == reader_id).first()
+
+        reader = db.session.query(Reader).filter(
+            Reader.reader_id == reader_id
+        ).first()
+
         if not reader:
             raise HTTPException(status_code=404, detail="Reader not found")
 
-        # Query using BorrowSlipDetail.status (NOT BorrowSlip.status)
+        # ===========================================================
+        # 🔥 STEP 1 — AUTO UPDATE OVERDUE STATUS IN DATABASE
+        # ===========================================================
+        now = datetime.utcnow()
+
+        active_details = db.session.query(BorrowSlipDetail).join(
+            BorrowSlip, BorrowSlipDetail.borrow_slip_id == BorrowSlip.bs_id
+        ).filter(
+            BorrowSlip.reader_id == reader_id,
+            BorrowSlipDetail.status == "active"
+        ).all()
+
+        updated = False
+        for detail in active_details:
+            due_date = detail.return_date  # this is actually "detail_due_date"
+            if due_date and now > due_date:
+                detail.status = "overdue"
+                updated = True
+
+        if updated:
+            db.session.commit()
+
+        # ===========================================================
+        # 🔥 STEP 2 — QUERY HISTORY (AFTER STATUS HAS BEEN UPDATED)
+        # ===========================================================
         query = db.session.query(
             BorrowSlip.bs_id,
             BorrowSlip.borrow_date,
-            BorrowSlip.return_date,  # still kept for backward compatibility (slip-level)
+            BorrowSlipDetail.real_return_date.label('actual_return_date'),  # ← TỪ DETAIL
             BorrowSlipDetail.id,
             BorrowSlipDetail.book_id,
             BorrowSlipDetail.return_date.label('detail_due_date'),
-            sa.cast(BorrowSlipDetail.status, sa.String).label('detail_status_str')  # ← FROM DETAIL
+            sa.cast(BorrowSlipDetail.status, sa.String).label('detail_status_str')
         ).select_from(BorrowSlip).join(
             BorrowSlipDetail, BorrowSlip.bs_id == BorrowSlipDetail.borrow_slip_id
         ).filter(BorrowSlip.reader_id == reader_id)
 
-        # Filter by BorrowSlipDetail.status if provided
+        # Optional status filter (user wants)
         if status:
-            query = query.filter(sa.cast(BorrowSlipDetail.status, sa.String) == status)
+            query = query.filter(BorrowSlipDetail.status == status.lower())
 
         total = query.count()
-        raw_results = query.order_by(BorrowSlip.borrow_date.desc()).offset((page - 1) * page_size).limit(
-            page_size).all()
+        raw_results = query.order_by(
+            BorrowSlip.borrow_date.desc()
+        ).offset(
+            (page - 1) * page_size
+        ).limit(
+            page_size
+        ).all()
 
-        # Load books
-        book_ids = [result.book_id for result in raw_results]
+        # Load book metadata only once
+        book_ids = [r.book_id for r in raw_results]
         books = db.session.query(Book).filter(Book.book_id.in_(book_ids)).all()
         book_dict = {b.book_id: b for b in books}
 
+        # ===========================================================
+        # 🔥 STEP 3 — BUILD RESPONSE
+        # ===========================================================
         history = []
-        for result in raw_results:
-            book = book_dict.get(result.book_id)
-            detail_status = str(result.detail_status_str).lower()
+        for r in raw_results:
+            book = book_dict.get(r.book_id)
+            detail_status = r.detail_status_str.lower()
+            due_date = r.detail_due_date
+            actual_return = r.actual_return_date  # ← LẤY TỪ DETAIL
 
-            # Determine display status and overdue info based on DETAIL status
+            display_status = detail_status.capitalize()
             is_overdue = False
             days_overdue = 0
-            display_status = str(result.detail_status_str).capitalize()
 
-            if detail_status == "pending":
-                display_status = "Pending"  # borrowing request
-            elif detail_status == "active":
-                # Check if overdue (not returned and past due)
-                if result.detail_due_date and datetime.utcnow() > result.detail_due_date:
+            if detail_status == "active":
+                if due_date and now > due_date:
                     display_status = "Overdue"
                     is_overdue = True
-                    days_overdue = (datetime.utcnow().date() - result.detail_due_date.date()).days
+                    days_overdue = (now.date() - due_date.date()).days
                 else:
                     display_status = "Active"
-            elif detail_status == "pendingreturn":
-                display_status = "Pending Return"
+
             elif detail_status == "returned":
-                # Check if returned late
-                if result.detail_due_date and result.return_date and result.return_date > result.detail_due_date:
+                if actual_return and due_date and actual_return > due_date:
                     display_status = "Overdue"
                     is_overdue = True
-                    days_overdue = (result.return_date.date() - result.detail_due_date.date()).days
+                    days_overdue = (actual_return.date() - due_date.date()).days
                 else:
                     display_status = "Returned"
+
+            elif detail_status == "pendingreturn":
+                display_status = "Pending Return"
+
+            elif detail_status == "pending":
+                display_status = "Pending"
+
             elif detail_status == "lost":
                 display_status = "Lost"
+
             elif detail_status == "rejected":
                 display_status = "Rejected"
+
             elif detail_status == "overdue":
-                # If status is explicitly "overdue", mark as such
                 display_status = "Overdue"
                 is_overdue = True
-                if result.detail_due_date:
-                    days_overdue = (datetime.utcnow().date() - result.detail_due_date.date()).days
+                if due_date:
+                    days_overdue = (now.date() - due_date.date()).days
 
             history.append({
-                "borrow_slip_id": result.bs_id,
-                "borrow_detail_id": result.id,
-                "borrow_date": result.borrow_date.isoformat(),
-                "due_date": result.detail_due_date.isoformat() if result.detail_due_date else None,
-                "actual_return_date": result.return_date.isoformat() if result.return_date else None,
-                "status": display_status,  # ← from detail, not slip
+                "borrow_slip_id": r.bs_id,
+                "borrow_detail_id": r.id,
+                "borrow_date": r.borrow_date.isoformat(),
+                "due_date": due_date.isoformat() if due_date else None,
+                "actual_return_date": actual_return.isoformat() if actual_return else None,
+                "status": display_status,
                 "book": {
-                    "book_id": result.book_id,
+                    "book_id": r.book_id,
                     "title": book.book_title.name if book and book.book_title else "Unknown",
                     "author": book.book_title.author if book and book.book_title else None,
-                    "due_date": result.detail_due_date.isoformat() if result.detail_due_date else None,
-                    "actual_return_date": result.return_date.isoformat() if result.return_date else None,
+                    "due_date": due_date.isoformat() if due_date else None,
+                    "actual_return_date": actual_return.isoformat() if actual_return else None,
                     "is_returned": detail_status == "returned",
                     "is_overdue": is_overdue,
                     "days_overdue": days_overdue,
-                    "status": display_status  # ← consistent
+                    "status": display_status
                 }
             })
 
+        # ===========================================================
+        # 🔥 STEP 4 — RETURN JSON
+        # ===========================================================
         return {
             "total": total,
             "page": page,
@@ -126,48 +275,15 @@ class HistoryService:
 
     @staticmethod
     def get_overdue_books(reader_id: str) -> dict:
-        """Get currently overdue books (active books past due date)"""
-        reader = db.session.query(Reader).filter(Reader.reader_id == reader_id).first()
-        if not reader:
-            raise HTTPException(status_code=404, detail="Reader not found")
+        """Get currently overdue books by reusing get_currently_borrowed_books logic."""
+        # Gọi phương thức hiện có để lấy tất cả sách đang mượn
+        result = HistoryService.get_currently_borrowed_books(reader_id)
 
-        now = datetime.utcnow()
-        raw_results = db.session.query(
-            BorrowSlipDetail.id,
-            BorrowSlipDetail.borrow_slip_id,
-            BorrowSlipDetail.book_id,
-            BorrowSlipDetail.return_date.label('detail_due_date'),
-            BorrowSlip.borrow_date,
-            sa.cast(BorrowSlipDetail.status, sa.String).label('detail_status_str')
-        ).join(
-            BorrowSlip, BorrowSlip.bs_id == BorrowSlipDetail.borrow_slip_id
-        ).filter(
-            BorrowSlip.reader_id == reader_id,
-            BorrowSlipDetail.return_date.isnot(None),
-            BorrowSlipDetail.return_date < now,
-            sa.cast(BorrowSlipDetail.status, sa.String) == 'Active'  # ← FROM DETAIL
-        ).all()
-
-        book_ids = [result.book_id for result in raw_results]
-        books = db.session.query(Book).filter(Book.book_id.in_(book_ids)).all()
-        book_dict = {b.book_id: b for b in books}
-
-        overdue_books = []
-        for result in raw_results:
-            book = book_dict.get(result.book_id)
-            days_overdue = (now.date() - result.detail_due_date.date()).days
-
-            overdue_books.append({
-                "borrow_detail_id": result.id,
-                "borrow_slip_id": result.borrow_slip_id,
-                "book_id": result.book_id,
-                "title": book.book_title.name if book and book.book_title else "Unknown",
-                "author": book.book_title.author if book and book.book_title else None,
-                "borrow_date": result.borrow_date.isoformat(),
-                "due_date": result.detail_due_date.isoformat(),
-                "days_overdue": days_overdue,
-                "status": "Overdue"
-            })
+        # Lọc chỉ giữ lại sách có is_overdue = True
+        overdue_books = [
+            book for book in result["currently_borrowed_books"]
+            if book["is_overdue"]
+        ]
 
         return {
             "total_overdue": len(overdue_books),
@@ -188,6 +304,7 @@ class HistoryService:
             BorrowSlipDetail.book_id,
             BorrowSlipDetail.return_date.label('detail_due_date'),
             BorrowSlip.borrow_date,
+            BorrowSlipDetail.real_return_date.label('actual_return_date'),  # ← THÊM
             sa.cast(BorrowSlipDetail.status, sa.String).label('detail_status_str')
         ).join(
             BorrowSlip, BorrowSlip.bs_id == BorrowSlipDetail.borrow_slip_id
@@ -244,13 +361,13 @@ class HistoryService:
             BorrowSlipDetail.book_id,
             BorrowSlipDetail.return_date.label('detail_due_date'),
             BorrowSlip.borrow_date,
-            BorrowSlip.return_date.label('slip_actual_return_date'),  # optional: from slip
+            BorrowSlipDetail.real_return_date.label('actual_return_date'),  # ← TỪ DETAIL
             sa.cast(BorrowSlipDetail.status, sa.String).label('detail_status_str')
         ).join(
             BorrowSlip, BorrowSlip.bs_id == BorrowSlipDetail.borrow_slip_id
         ).filter(
             BorrowSlip.reader_id == reader_id,
-            sa.cast(BorrowSlipDetail.status, sa.String) == 'Returned'  # ← KEY CHANGE
+            sa.cast(BorrowSlipDetail.status, sa.String) == 'Returned'
         ).all()
 
         book_ids = [result.book_id for result in raw_results]
@@ -264,7 +381,7 @@ class HistoryService:
             # To calculate late return, we need the ACTUAL return date of the BOOK
             # But your model doesn't have it in BorrowSlipDetail yet.
             # So we use BorrowSlip.return_date as an approximation (same for all books in slip)
-            actual_return_date = result.slip_actual_return_date
+            actual_return_date = result.actual_return_date
 
             is_overdue = False
             days_overdue = 0

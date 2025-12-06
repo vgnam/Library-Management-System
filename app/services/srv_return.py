@@ -1,7 +1,7 @@
 """
 Service for handling book returns with condition assessment
 """
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from fastapi_sqlalchemy import db
 from fastapi import HTTPException
 
@@ -44,14 +44,14 @@ class ReturnService:
         if not slip:
             raise HTTPException(status_code=404, detail="Borrow slip not found")
 
-        # ✅ CHECK DETAIL STATUS (not slip status)
+        # Check detail status (not slip status)
         if detail.status not in [BorrowStatusEnum.active, BorrowStatusEnum.overdue]:
             raise HTTPException(
                 status_code=400,
                 detail=f"Cannot return book. Current status: {detail.status.value}"
             )
 
-        # ✅ Set detail status to PENDING_RETURN
+        # Set detail status to PENDING_RETURN
         detail.status = BorrowStatusEnum.pending_return
         db.session.commit()
 
@@ -59,6 +59,57 @@ class ReturnService:
             "message": "Return request submitted for this book",
             "borrow_detail_id": borrow_detail_id,
             "user_id": user_id,
+            "status": detail.status.value
+        }
+
+    @staticmethod
+    def cancel_return_request(borrow_detail_id: str, user_id: str) -> dict:
+        """
+        Cancel a return request (reader can cancel before librarian processes it).
+        """
+        # Get borrow detail
+        detail = db.session.query(BorrowSlipDetail).filter(
+            BorrowSlipDetail.id == borrow_detail_id
+        ).first()
+        if not detail:
+            raise HTTPException(status_code=404, detail="Borrow detail not found")
+
+        # Find reader by user_id
+        reader = db.session.query(Reader).filter(Reader.user_id == user_id).first()
+        if not reader:
+            raise HTTPException(status_code=404, detail="Reader not found for this user")
+
+        # Verify the borrow slip belongs to this reader
+        slip = db.session.query(BorrowSlip).filter(
+            BorrowSlip.bs_id == detail.borrow_slip_id,
+            BorrowSlip.reader_id == reader.reader_id
+        ).first()
+        if not slip:
+            raise HTTPException(status_code=403, detail="You can only cancel your own return requests")
+
+        # Check if status is pending_return
+        if detail.status != BorrowStatusEnum.pending_return:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot cancel. Current status: {detail.status.value}"
+            )
+
+        # Revert status back to active or overdue
+        now = datetime.now(tz=tz_vn)
+        due_date = detail.return_date
+        if due_date.tzinfo is None:
+            due_date = tz_vn.localize(due_date)
+
+        if now > due_date:
+            detail.status = BorrowStatusEnum.overdue
+        else:
+            detail.status = BorrowStatusEnum.active
+
+        db.session.commit()
+
+        return {
+            "message": "Return request cancelled",
+            "borrow_detail_id": borrow_detail_id,
             "status": detail.status.value
         }
 
@@ -99,7 +150,7 @@ class ReturnService:
         if not slip:
             raise HTTPException(status_code=404, detail="Borrow slip not found")
 
-        # ✅ Check for PENDING_RETURN status
+        # Check for PENDING_RETURN status
         if detail.status != BorrowStatusEnum.pending_return:
             raise HTTPException(
                 status_code=400,
@@ -111,22 +162,24 @@ class ReturnService:
         if not book:
             raise HTTPException(status_code=404, detail="Book copy not found")
 
-        from datetime import datetime, timezone, timedelta
-
-        # Calculate fees
+        # Calculate fees with proper timezone handling
         return_datetime = datetime.now()
+        if not due_date:
+            raise HTTPException(status_code=400, detail="Due to date not found")
+        due_date = detail.return_date  # This is the due_date
 
-        due_date = detail.return_date  # đây là due_date
-        if due_date.tzinfo is not None:
+        # Ensure due_date is timezone-aware for comparison
+        if due_date.tzinfo is None:
             due_date = due_date.replace(tzinfo=None)
-        
+
         is_overdue = return_datetime > due_date
         
         days_overdue = (return_datetime.date() - due_date.date()).days if is_overdue else 0
         
         late_fee = days_overdue * 5000 if is_overdue else 0
 
-        detail.real_return_date = return_datetime  # ← THÊM DÒNG NÀY
+        # Set actual return date
+        detail.real_return_date = return_datetime
 
         condition_fee = 0
         if condition == "damaged":
@@ -166,11 +219,25 @@ class ReturnService:
                 penalty_ids.append(penalty["penalty_id"])
             elif condition == "lost":
                 penalty = PenaltyService.create_lost_penalty(
-                    borrow_detail_id=borrow_detail_id
+                    borrow_detail_id=borrow_detail_id,
+                    fine_amount=condition_fee  # Pass the custom fine amount
                 )
                 penalty_ids.append(penalty["penalty_id"])
         except Exception as e:
             print(f"Warning: Failed to create penalty: {e}")
+
+        # Check if all details are returned and update slip status
+        all_details = db.session.query(BorrowSlipDetail).filter(
+            BorrowSlipDetail.borrow_slip_id == slip.bs_id
+        ).all()
+
+        all_returned = all(
+            d.status in [BorrowStatusEnum.returned, BorrowStatusEnum.lost]
+            for d in all_details
+        )
+
+        if all_returned:
+            slip.status = BorrowStatusEnum.returned
 
         db.session.commit()
 
@@ -178,28 +245,13 @@ class ReturnService:
         reader = db.session.query(Reader).filter(Reader.reader_id == slip.reader_id).first()
         user_id = reader.user_id if reader else "unknown"
 
-        # response = {
-        #     "message": "Book return processed successfully",
-        #     "borrow_detail_id": borrow_detail_id,
-        #     "book_id": detail.book_id,
-        #     "user_id": user_id,
-        #     "return_date": return_datetime.isoformat(),
-        #     "condition": condition,
-        #     "is_overdue": is_overdue,
-        #     "days_overdue": days_overdue,
-        #     "late_fee": late_fee,
-        #     "condition_fee": condition_fee,
-        #     "total_fee": total_fee,
-        #     "status": detail.status.value,
-        # }
-
         response = {
             "message": "Book return processed successfully",
             "borrow_detail_id": borrow_detail_id,
             "book_id": detail.book_id,
             "user_id": user_id,
-            "return_date": return_datetime.isoformat(),  # actual return date
-            "due_date": due_date.isoformat() if due_date else None,  # thêm due_date vào response
+            "return_date": return_datetime.isoformat(),
+            "due_date": due_date.isoformat() if due_date else None,
             "condition": condition,
             "is_overdue": is_overdue,
             "days_overdue": days_overdue,
@@ -207,6 +259,7 @@ class ReturnService:
             "condition_fee": condition_fee,
             "total_fee": total_fee,
             "status": detail.status.value,
+            "borrow_slip_status": slip.status.value
         }
 
         if condition == "damaged":
@@ -216,17 +269,48 @@ class ReturnService:
 
         return response
 
-    # Trong ReturnService
+    @staticmethod
+    def get_reader_return_requests(user_id: str) -> list:
+        """
+        Get all pending return requests for a specific reader.
+        """
+        # Find reader by user_id
+        reader = db.session.query(Reader).filter(Reader.user_id == user_id).first()
+        if not reader:
+            raise HTTPException(status_code=404, detail="Reader not found for this user")
+
+        # Get all pending return details for this reader
+        details = db.session.query(BorrowSlipDetail).join(
+            BorrowSlip, BorrowSlipDetail.borrow_slip_id == BorrowSlip.bs_id
+        ).filter(
+            BorrowSlip.reader_id == reader.reader_id,
+            BorrowSlipDetail.status == BorrowStatusEnum.pending_return
+        ).all()
+
+        results = []
+        for d in details:
+            book = db.session.query(Book).filter(Book.book_id == d.book_id).first()
+
+            results.append({
+                "borrow_detail_id": d.id,
+                "book_title": book.book_title.name if book and book.book_title else "Unknown",
+                "book_id": d.book_id,
+                "due_date": d.return_date.isoformat() if d.return_date else None,
+                "status": d.status.value
+            })
+
+        return results
+
     @staticmethod
     def get_pending_return_requests() -> list:
-        """Get all borrow details with status = pending_return"""
+        """Get all borrow details with status = pending_return (for librarians)"""
         details = db.session.query(BorrowSlipDetail).filter(
             BorrowSlipDetail.status == BorrowStatusEnum.pending_return
         ).all()
 
         results = []
         for d in details:
-            # Lấy thông tin slip, reader, book để hiển thị
+            # Get slip, reader, book info for display
             slip = db.session.query(BorrowSlip).filter(BorrowSlip.bs_id == d.borrow_slip_id).first()
             reader = db.session.query(Reader).filter(Reader.reader_id == slip.reader_id).first() if slip else None
             book = db.session.query(Book).filter(Book.book_id == d.book_id).first()
@@ -234,9 +318,43 @@ class ReturnService:
             results.append({
                 "borrow_detail_id": d.id,
                 "book_title": book.book_title.name if book and book.book_title else "Unknown",
+                "book_id": d.book_id,
                 "reader_name": reader.user.full_name if reader and reader.user else "Unknown",
-                "request_date": slip.borrow_date if slip else None,
-                "due_date": d.return_date
+                "reader_id": slip.reader_id if slip else None,
+                "borrow_date": slip.borrow_date.isoformat() if slip and slip.borrow_date else None,
+                "due_date": d.return_date.isoformat() if d.return_date else None
             })
         return results
 
+    @staticmethod
+    def get_return_statistics() -> dict:
+        """Get statistics about returns"""
+        # Count by status
+        total_returned = db.session.query(BorrowSlipDetail).filter(
+            BorrowSlipDetail.status == BorrowStatusEnum.returned
+        ).count()
+
+        total_lost = db.session.query(BorrowSlipDetail).filter(
+            BorrowSlipDetail.status == BorrowStatusEnum.lost
+        ).count()
+
+        pending_returns = db.session.query(BorrowSlipDetail).filter(
+            BorrowSlipDetail.status == BorrowStatusEnum.pending_return
+        ).count()
+
+        active_borrows = db.session.query(BorrowSlipDetail).filter(
+            BorrowSlipDetail.status == BorrowStatusEnum.active
+        ).count()
+
+        overdue_borrows = db.session.query(BorrowSlipDetail).filter(
+            BorrowSlipDetail.status == BorrowStatusEnum.overdue
+        ).count()
+
+        return {
+            "total_returned": total_returned,
+            "total_lost": total_lost,
+            "pending_returns": pending_returns,
+            "active_borrows": active_borrows,
+            "overdue_borrows": overdue_borrows,
+            "total_active": active_borrows + overdue_borrows + pending_returns
+        }

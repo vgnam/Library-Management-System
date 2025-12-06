@@ -5,17 +5,21 @@ from datetime import datetime
 from fastapi_sqlalchemy import db
 from fastapi import HTTPException
 import uuid
+import re
+import pytz
 
 from app.models.model_penalty import PenaltySlip, PenaltyTypeEnum, PenaltyStatusEnum
 from app.models.model_borrow import BorrowSlipDetail, BorrowSlip
 from app.models.model_book import Book
+
+tz_vn = pytz.timezone("Asia/Ho_Chi_Minh")
 
 # Fine configuration
 FINE_RATES = {
     "late_per_day": 5000,  # 5,000 VND per day for late returns
     "damage_min": 50000,  # Minimum 50,000 VND for damage
     "damage_max": 500000,  # Maximum 500,000 VND for damage
-    "lost_multiplier": 2.0,  # 200% of book price for lost books
+    "lost_multiplier": 1.5,  # 150% of book price for lost books (aligned with srv_return.py)
 }
 
 
@@ -23,18 +27,141 @@ class PenaltyService:
     """Handle penalty creation and management"""
 
     @staticmethod
-    def create_late_penalty(borrow_detail_id: str, days_overdue: int, fine_amount: float) -> dict:
+    def _extract_fine_from_description(description: str) -> float:
+        """Extract fine amount from description string"""
+        if not description:
+            return 0.0
+        # Look for pattern like "Fine: 50,000 VND" or "Compensation: 150,000 VND"
+        match = re.search(r'(?:Fine|Compensation):\s*([\d,]+)\s*VND', description)
+        if match:
+            return float(match.group(1).replace(',', ''))
+        return 0.0
+
+    @staticmethod
+    def calculate_current_late_fine(due_date: datetime, return_date: datetime = None) -> dict:
+        """
+        Calculate real-time late fine based on current date or return date.
+        This provides dynamic penalty calculation without needing to update the database.
+
+        Args:
+            due_date: When the book should have been returned
+            return_date: When book was actually returned (None if still borrowed)
+
+        Returns:
+            Dictionary with days_overdue and fine_amount
+        """
+        now = datetime.now(tz=tz_vn)
+        
+        # Make due_date timezone-aware if needed
+        if due_date.tzinfo is None:
+            due_date = tz_vn.localize(due_date)
+        
+        # Use return date if provided, otherwise use current time
+        comparison_date = return_date if return_date else now
+        if comparison_date.tzinfo is None:
+            comparison_date = tz_vn.localize(comparison_date)
+        
+        # Calculate days overdue
+        if comparison_date > due_date:
+            days_overdue = (comparison_date.date() - due_date.date()).days
+            fine_amount = days_overdue * FINE_RATES["late_per_day"]
+            return {
+                "days_overdue": days_overdue,
+                "fine_amount": int(fine_amount),
+                "is_overdue": True
+            }
+        else:
+            return {
+                "days_overdue": 0,
+                "fine_amount": 0,
+                "is_overdue": False
+            }
+
+    @staticmethod
+    def get_real_time_penalty_info(borrow_detail_id: str) -> dict:
+        """
+        Get real-time penalty information for a borrow detail.
+        Calculates current fine amount dynamically.
+
+        Args:
+            borrow_detail_id: ID of the borrow detail
+
+        Returns:
+            Dictionary with penalty information including real-time fine amount
+        """
+        # Get borrow detail
+        detail = db.session.query(BorrowSlipDetail).filter(
+            BorrowSlipDetail.id == borrow_detail_id
+        ).first()
+        
+        if not detail:
+            raise HTTPException(status_code=404, detail="Borrow detail not found")
+        
+        # Check for existing penalties
+        penalties = db.session.query(PenaltySlip).filter(
+            PenaltySlip.borrow_detail_id == borrow_detail_id
+        ).all()
+        
+        result = {
+            "borrow_detail_id": borrow_detail_id,
+            "penalties": []
+        }
+        
+        for penalty in penalties:
+            penalty_info = {
+                "penalty_id": penalty.penalty_id,
+                "penalty_type": penalty.penalty_type.value,
+                "status": penalty.status.value,
+                "description": penalty.description
+            }
+            
+            # For late penalties, calculate real-time fine
+            if penalty.penalty_type == PenaltyTypeEnum.late and detail.due_date:
+                fine_calc = PenaltyService.calculate_current_late_fine(
+                    due_date=detail.due_date,
+                    return_date=detail.return_date
+                )
+                penalty_info["fine_amount"] = fine_calc["fine_amount"]
+                penalty_info["days_overdue"] = fine_calc["days_overdue"]
+                penalty_info["real_time_calculated"] = True
+            else:
+                # For damage/lost penalties, extract from description
+                penalty_info["fine_amount"] = int(PenaltyService._extract_fine_from_description(penalty.description))
+                penalty_info["real_time_calculated"] = False
+            
+            result["penalties"].append(penalty_info)
+        
+        # If no penalty exists but book is overdue, calculate potential penalty
+        if not penalties and detail.due_date and detail.return_date is None:
+            fine_calc = PenaltyService.calculate_current_late_fine(
+                due_date=detail.due_date
+            )
+            if fine_calc["is_overdue"]:
+                result["potential_penalty"] = {
+                    "penalty_type": "Late",
+                    "fine_amount": fine_calc["fine_amount"],
+                    "days_overdue": fine_calc["days_overdue"],
+                    "status": "Not Created Yet",
+                    "real_time_calculated": True
+                }
+        
+        return result
+
+    @staticmethod
+    def create_late_penalty(borrow_detail_id: str, days_overdue: int) -> dict:
         """
         Create penalty for late return
 
         Args:
             borrow_detail_id: ID of the borrow detail
             days_overdue: Number of days overdue
-            fine_amount: Calculated fine amount
 
         Returns:
             Dictionary with penalty information
         """
+        # Calculate fine amount
+        fine_amount = days_overdue * FINE_RATES["late_per_day"]
+
         # Check if penalty already exists
         existing_penalty = db.session.query(PenaltySlip).filter(
             PenaltySlip.borrow_detail_id == borrow_detail_id,
@@ -144,13 +271,13 @@ class PenaltyService:
         }
 
     @staticmethod
-    def create_lost_penalty(borrow_detail_id: str, book_price: float = None) -> dict:
+    def create_lost_penalty(borrow_detail_id: str, fine_amount: float = None) -> dict:
         """
         Create penalty for lost book
 
         Args:
             borrow_detail_id: ID of the borrow detail
-            book_price: Optional book price (if not provided, fetch from Book)
+            fine_amount: Optional custom fine amount (if not provided, calculate from book price)
 
         Returns:
             Dictionary with penalty information
@@ -163,20 +290,19 @@ class PenaltyService:
         if not detail:
             raise HTTPException(status_code=404, detail="Borrow detail not found")
 
-        # Get book price if not provided
-        if book_price is None:
-            book = db.session.query(Book).filter(
-                Book.book_id == detail.book_id
-            ).first()
+        # Get book to calculate price if fine_amount not provided
+        book = db.session.query(Book).filter(
+            Book.book_id == detail.book_id
+        ).first()
 
-            if not book:
-                raise HTTPException(status_code=404, detail="Book not found")
+        if not book:
+            raise HTTPException(status_code=404, detail="Book not found")
 
-            # Assume Book model has a 'price' field
-            book_price = getattr(book, 'price', 100000)  # Default 100,000 VND
+        book_price = getattr(book, 'price', 100000)  # Default 100,000 VND
 
-        # Calculate fine: 200% of book price
-        fine_amount = book_price * FINE_RATES["lost_multiplier"]
+        # Calculate fine if not provided
+        if fine_amount is None:
+            fine_amount = book_price * FINE_RATES["lost_multiplier"]
 
         # Check if lost penalty already exists
         existing_penalty = db.session.query(PenaltySlip).filter(
@@ -195,14 +321,13 @@ class PenaltyService:
             penalty_id=f"PEN-{uuid.uuid4().hex[:8].upper()}",
             borrow_detail_id=borrow_detail_id,
             penalty_type=PenaltyTypeEnum.lost,
-            description=f"Book lost. Compensation: {int(fine_amount):,} VND (Book price: {int(book_price):,} VND × 2)",
+            description=f"Book lost. Book price: {int(book_price):,} VND. Compensation: {int(fine_amount):,} VND",
             status=PenaltyStatusEnum.pending
         )
 
         db.session.add(penalty)
 
         # Mark book as lost (update inventory if needed)
-        book = db.session.query(Book).filter(Book.book_id == detail.book_id).first()
         if book:
             book.being_borrowed = False  # Book is no longer borrowed
             # You might want to decrease total_quantity or mark as lost
@@ -243,6 +368,9 @@ class PenaltyService:
         if penalty.status == PenaltyStatusEnum.cancelled:
             raise HTTPException(status_code=400, detail="Penalty is cancelled")
 
+        # Extract fine amount before updating
+        fine_amount = PenaltyService._extract_fine_from_description(penalty.description)
+
         # Update status
         penalty.status = PenaltyStatusEnum.paid
 
@@ -259,6 +387,7 @@ class PenaltyService:
             "penalty_id": penalty.penalty_id,
             "message": "Penalty marked as paid",
             "penalty_type": penalty.penalty_type.value,
+            "fine_amount": int(fine_amount) if fine_amount else 0,
             "status": penalty.status.value,
             "paid_at": datetime.utcnow().isoformat()
         }
@@ -339,6 +468,7 @@ class PenaltyService:
         penalties = []
 
         for penalty, detail, slip in results:
+            fine_amount = PenaltyService._extract_fine_from_description(penalty.description)
             penalties.append({
                 "penalty_id": penalty.penalty_id,
                 "penalty_type": penalty.penalty_type.value,
@@ -347,6 +477,7 @@ class PenaltyService:
                 "borrow_date": slip.borrow_date.isoformat(),
                 "return_date": detail.return_date.isoformat() if detail.return_date else None,
                 "description": penalty.description,
+                "fine_amount": int(fine_amount) if fine_amount else 0,
                 "status": penalty.status.value
             })
 
@@ -376,6 +507,19 @@ class PenaltyService:
 
         all_penalties = query.all()
 
+        # Calculate total amounts by parsing descriptions
+        total_amount = 0
+        pending_amount = 0
+        paid_amount = 0
+
+        for p in all_penalties:
+            fine = PenaltyService._extract_fine_from_description(p.description)
+            total_amount += fine
+            if p.status == PenaltyStatusEnum.pending:
+                pending_amount += fine
+            elif p.status == PenaltyStatusEnum.paid:
+                paid_amount += fine
+
         stats = {
             "total_penalties": len(all_penalties),
             "pending": sum(1 for p in all_penalties if p.status == PenaltyStatusEnum.pending),
@@ -385,6 +529,11 @@ class PenaltyService:
                 "late": sum(1 for p in all_penalties if p.penalty_type == PenaltyTypeEnum.late),
                 "damage": sum(1 for p in all_penalties if p.penalty_type == PenaltyTypeEnum.damage),
                 "lost": sum(1 for p in all_penalties if p.penalty_type == PenaltyTypeEnum.lost),
+            },
+            "amounts": {
+                "total": int(total_amount),
+                "pending": int(pending_amount),
+                "paid": int(paid_amount)
             }
         }
 

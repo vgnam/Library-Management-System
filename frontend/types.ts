@@ -76,6 +76,18 @@ export interface HistoryBookInfo {
   status: string;
 }
 
+// Penalty information
+export interface PenaltyInfo {
+  penalty_id: string | null;
+  penalty_type: string;
+  description: string;
+  fine_amount: number;
+  days_overdue?: number;
+  status: string;
+  real_time_calculated?: boolean;
+  auto_calculated?: boolean;
+}
+
 // Top level history record (Matches provided JSON structure)
 export interface BorrowHistoryRecord {
   borrow_slip_id?: string;
@@ -84,6 +96,7 @@ export interface BorrowHistoryRecord {
   due_date: string | null;      // Slip Due Date
   actual_return_date?: string | null;
   status: string;               // Slip Status
+  penalty?: PenaltyInfo | null; // Penalty information if exists
   book: HistoryBookInfo;        // Nested book details
 }
 
@@ -112,6 +125,9 @@ export interface CurrentlyBorrowedBook {
 export interface CurrentBorrowedResponse {
   total_borrowed: number;
   currently_borrowed_books: CurrentlyBorrowedBook[];
+  card_type?: string;
+  max_books?: number;
+  remaining_slots?: number;
 }
 
 export interface OverdueResponse {

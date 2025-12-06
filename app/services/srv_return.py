@@ -10,6 +10,9 @@ from app.models.model_book import Book
 from app.models.model_reader import Reader
 from app.services.srv_penalty import PenaltyService
 
+import pytz
+
+tz_vn = pytz.timezone("Asia/Ho_Chi_Minh")
 
 class ReturnService:
     """Service for handling book returns in two stages: request and processing"""
@@ -108,8 +111,10 @@ class ReturnService:
         if not book:
             raise HTTPException(status_code=404, detail="Book copy not found")
 
+        from datetime import datetime, timezone, timedelta
+
         # Calculate fees
-        return_datetime = datetime.utcnow()
+        return_datetime = datetime.now(tz = timezone(timedelta(hours=7)))
         due_date = detail.return_date  # đây là due_date
         is_overdue = return_datetime > due_date
         days_overdue = (return_datetime.date() - due_date.date()).days if is_overdue else 0

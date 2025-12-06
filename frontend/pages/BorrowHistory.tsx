@@ -107,8 +107,11 @@ export const BorrowHistory: React.FC = () => {
   };
 
   const getStatusBadge = (book: HistoryBookInfo, slipStatus: string) => {
-    // If slip is rejected, everything is rejected
-    if (slipStatus.toLowerCase() === 'rejected') {
+    const status = book.status || slipStatus;
+    const statusLower = status.toLowerCase();
+    
+    // Rejected - Red
+    if (statusLower === 'rejected') {
       return (
         <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1 rounded-full text-xs font-semibold">
           <AlertCircle className="h-3.5 w-3.5" /> Rejected
@@ -116,8 +119,8 @@ export const BorrowHistory: React.FC = () => {
       );
     }
 
-    // If slip is pending, everything is pending
-    if (slipStatus.toLowerCase() === 'pending') {
+    // Pending approval - Blue
+    if (statusLower === 'pending') {
       return (
         <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs font-semibold">
           <Hourglass className="h-3.5 w-3.5" /> Pending
@@ -125,8 +128,24 @@ export const BorrowHistory: React.FC = () => {
       );
     }
 
-    // If actual return date exists or status is explicitly Returned
-    if (book.actual_return_date || book.is_returned || book.status === 'Returned') {
+    // Pending Return - Show in RED if overdue, YELLOW if on time
+    if (statusLower === 'pending return' || statusLower === 'pendingreturn') {
+      const isOverdue = book.is_overdue || statusLower.includes('overdue');
+      return (
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+          isOverdue 
+            ? 'bg-red-100 text-red-700' 
+            : 'bg-yellow-50 text-yellow-700'
+        }`}>
+          <Clock className="h-3.5 w-3.5" /> 
+          Pending Return
+          {isOverdue && <span className="ml-1 text-[10px]">(Overdue)</span>}
+        </span>
+      );
+    }
+
+    // Returned - Gray
+    if (book.actual_return_date || book.is_returned || statusLower === 'returned') {
       return (
         <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold">
           <CheckCircle className="h-3.5 w-3.5" /> Returned
@@ -134,8 +153,17 @@ export const BorrowHistory: React.FC = () => {
       );
     }
 
-    // If not returned and overdue (calculated by backend)
-    if (book.is_overdue || book.status === 'Overdue') {
+    // Lost - Dark Red
+    if (statusLower === 'lost') {
+      return (
+        <span className="inline-flex items-center gap-1.5 bg-red-900 text-white px-3 py-1 rounded-full text-xs font-semibold">
+          <AlertCircle className="h-3.5 w-3.5" /> Lost
+        </span>
+      );
+    }
+
+    // Overdue - Red
+    if (book.is_overdue || statusLower === 'overdue') {
       return (
         <span className="inline-flex items-center gap-1.5 bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-semibold">
           <AlertTriangle className="h-3.5 w-3.5" /> Overdue
@@ -143,10 +171,19 @@ export const BorrowHistory: React.FC = () => {
       );
     }
 
-    // Otherwise it's active/borrowed
+    // Active/Borrowed - Green
+    if (statusLower === 'active' || statusLower === 'borrowed') {
+      return (
+        <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
+          <BookOpen className="h-3.5 w-3.5" /> Borrowed
+        </span>
+      );
+    }
+
+    // Default fallback - show the actual status
     return (
-      <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
-        <BookOpen className="h-3.5 w-3.5" /> Borrowed
+      <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold">
+        {status}
       </span>
     );
   };

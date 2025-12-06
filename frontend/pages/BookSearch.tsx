@@ -156,10 +156,13 @@ export const BookSearch: React.FC = () => {
       } else {
         // Selecting - check limits
         if (readerStats) {
-          const totalAfterSelection = readerStats.current_active_books + prev.length + 1;
-          if (totalAfterSelection > readerStats.max_books) {
+          // Number of books being selected in this request
+          const booksToSelect = prev.length + 1;
+          
+          // Check: selected books must be <= remaining slots
+          if (booksToSelect > readerStats.remaining_slots) {
             setWarningMsg(
-              `Cannot select more books. You have ${readerStats.current_active_books} active books and can only borrow ${readerStats.remaining_slots} more. Your ${readerStats.card_type} limit is ${readerStats.max_books} books.`
+              `Cannot select more books. You have ${readerStats.current_active_books} active books and can only borrow ${readerStats.remaining_slots} more (${booksToSelect} selected). Your ${readerStats.card_type} card limit is ${readerStats.max_books} books.`
             );
             setTimeout(() => setWarningMsg(''), 5000);
             return prev;
@@ -173,11 +176,23 @@ export const BookSearch: React.FC = () => {
   
   const handleCreateRequest = async () => {
     if (selectedBooks.length === 0) return;
+    
+    // Double-check limit before submitting
+    if (readerStats && selectedBooks.length > readerStats.remaining_slots) {
+      setErrorMsg(
+        `Cannot create request. You can only borrow ${readerStats.remaining_slots} more books (you have ${readerStats.current_active_books} active, max ${readerStats.max_books}).`
+      );
+      setTimeout(() => setErrorMsg(''), 5000);
+      return;
+    }
+    
     try {
       setLoading(true);
       await api.createBorrowRequest(selectedBooks);
       setSuccessMsg('Borrow request created successfully!');
       setSelectedBooks([]);
+      // Refresh reader stats after successful request
+      await fetchReaderStats();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err: any) {
       if (err.message && err.message.includes('Session expired')) {

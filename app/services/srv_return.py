@@ -114,10 +114,16 @@ class ReturnService:
         from datetime import datetime, timezone, timedelta
 
         # Calculate fees
-        return_datetime = datetime.now(tz = timezone(timedelta(hours=7)))
+        return_datetime = datetime.now()
+
         due_date = detail.return_date  # đây là due_date
+        if due_date.tzinfo is not None:
+            due_date = due_date.replace(tzinfo=None)
+        
         is_overdue = return_datetime > due_date
+        
         days_overdue = (return_datetime.date() - due_date.date()).days if is_overdue else 0
+        
         late_fee = days_overdue * 5000 if is_overdue else 0
 
         detail.real_return_date = return_datetime  # ← THÊM DÒNG NÀY

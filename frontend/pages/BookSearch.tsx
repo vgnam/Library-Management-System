@@ -47,7 +47,7 @@ export const BookSearch: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 12;
   
   const [books, setBooks] = useState<BookSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -75,12 +75,12 @@ export const BookSearch: React.FC = () => {
     try {
       const res = await api.getCurrentlyBorrowed();
       if (res) {
-        const maxBooks = res.card_type === 'VIP' ? 8 : 5;
+        // Use values directly from backend
         setReaderStats({
           card_type: res.card_type || 'Standard',
-          max_books: maxBooks,
+          max_books: res.max_books || 5,
           current_active_books: res.total_borrowed || 0,
-          remaining_slots: maxBooks - (res.total_borrowed || 0)
+          remaining_slots: res.remaining_slots || 0
         });
       }
     } catch (err) {
@@ -156,10 +156,13 @@ export const BookSearch: React.FC = () => {
       } else {
         // Selecting - check limits
         if (readerStats) {
-          const totalAfterSelection = readerStats.current_active_books + prev.length + 1;
-          if (totalAfterSelection > readerStats.max_books) {
+          // Number of books being selected in this request
+          const booksToSelect = prev.length + 1;
+          
+          // Check: selected books must be <= remaining slots
+          if (booksToSelect > readerStats.remaining_slots) {
             setWarningMsg(
-              `Cannot select more books. You have ${readerStats.current_active_books} active books and can only borrow ${readerStats.remaining_slots} more. Your ${readerStats.card_type} limit is ${readerStats.max_books} books.`
+              `Cannot select more books. You have ${readerStats.current_active_books} active books and can only borrow ${readerStats.remaining_slots} more (${booksToSelect} selected). Your ${readerStats.card_type} card limit is ${readerStats.max_books} books.`
             );
             setTimeout(() => setWarningMsg(''), 5000);
             return prev;
@@ -173,11 +176,23 @@ export const BookSearch: React.FC = () => {
   
   const handleCreateRequest = async () => {
     if (selectedBooks.length === 0) return;
+    
+    // Double-check limit before submitting
+    if (readerStats && selectedBooks.length > readerStats.remaining_slots) {
+      setErrorMsg(
+        `Cannot create request. You can only borrow ${readerStats.remaining_slots} more books (you have ${readerStats.current_active_books} active, max ${readerStats.max_books}).`
+      );
+      setTimeout(() => setErrorMsg(''), 5000);
+      return;
+    }
+    
     try {
       setLoading(true);
       await api.createBorrowRequest(selectedBooks);
       setSuccessMsg('Borrow request created successfully!');
       setSelectedBooks([]);
+      // Refresh reader stats after successful request
+      await fetchReaderStats();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err: any) {
       if (err.message && err.message.includes('Session expired')) {
@@ -252,24 +267,29 @@ export const BookSearch: React.FC = () => {
 
       {/* Reader Stats Info */}
       {readerStats && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-4 rounded-lg">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-4">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-5 rounded-lg shadow-sm">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-700">Account Type:</span>
                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${readerStats.card_type === 'VIP' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>
                   {readerStats.card_type}
                 </span>
               </div>
-              <div className="text-sm text-gray-600">
-                <span className="font-semibold text-gray-900">{readerStats.current_active_books}</span> / {readerStats.max_books} books borrowed
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-gray-500" />
+                <span className="text-sm text-gray-600">
+                  Currently borrowed: <span className="font-bold text-gray-900">{readerStats.current_active_books}</span> / <span className="font-bold text-gray-900">{readerStats.max_books}</span> books
+                </span>
               </div>
             </div>
-            <div className="text-sm">
-              <span className="text-gray-600">Available slots: </span>
-              <span className={`font-bold ${readerStats.remaining_slots > 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-blue-300 shadow-sm">
+              <Layers className="h-4 w-4 text-blue-600" />
+              <span className="text-sm text-gray-700">You can borrow: </span>
+              <span className={`text-lg font-bold ${readerStats.remaining_slots > 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {readerStats.remaining_slots}
               </span>
+              <span className="text-sm text-gray-600">more book{readerStats.remaining_slots !== 1 ? 's' : ''}</span>
             </div>
           </div>
         </div>

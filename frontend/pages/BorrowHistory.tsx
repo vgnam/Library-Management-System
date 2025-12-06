@@ -25,7 +25,7 @@ export const BorrowHistory: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   
   const navigate = useNavigate();
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 12;
 
   useEffect(() => {
     console.log('Fetching history for filter:', activeFilter, 'page:', currentPage);

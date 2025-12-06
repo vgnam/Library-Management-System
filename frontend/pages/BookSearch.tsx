@@ -309,8 +309,8 @@ export const BookSearch: React.FC = () => {
         </div>
       )}
 
-      {/* Grid of Books */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Grid of Books - 12 books per page displayed in 4 columns on large screens */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {books.length === 0 && !loading && (
            <div className="col-span-full text-center py-12 text-gray-500 bg-white rounded-lg border border-gray-200 border-dashed">
              <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-2" />

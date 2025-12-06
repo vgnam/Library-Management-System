@@ -13,6 +13,7 @@ import sqlalchemy as sa
 from app.models.model_borrow import BorrowSlip, BorrowSlipDetail
 from app.models.model_book import Book
 from app.models.model_reader import Reader
+from app.models.model_penalty import PenaltySlip, PenaltyStatusEnum
 
 
 class HistoryService:
@@ -194,6 +195,13 @@ class HistoryService:
         books = db.session.query(Book).filter(Book.book_id.in_(book_ids)).all()
         book_dict = {b.book_id: b for b in books}
 
+        # Load penalties for all borrow details
+        detail_ids = [r.id for r in raw_results]
+        penalties = db.session.query(PenaltySlip).filter(
+            PenaltySlip.borrow_detail_id.in_(detail_ids)
+        ).all()
+        penalty_dict = {p.borrow_detail_id: p for p in penalties}
+
         # ===========================================================
         # 🔥 STEP 3 — BUILD RESPONSE
         # ===========================================================
@@ -242,6 +250,52 @@ class HistoryService:
                 if due_date:
                     days_overdue = (now.date() - due_date.date()).days
 
+            # Get penalty info with REAL-TIME calculation
+            penalty = penalty_dict.get(r.id)
+            penalty_info = None
+            if penalty:
+                # Import PenaltyService for real-time calculation
+                from app.services.srv_penalty import PenaltyService, PenaltyTypeEnum
+                import re
+                
+                # For LATE penalties, calculate real-time fine amount
+                if penalty.penalty_type == PenaltyTypeEnum.late and due_date:
+                    fine_calc = PenaltyService.calculate_current_late_fine(
+                        due_date=due_date,
+                        return_date=actual_return
+                    )
+                    fine_amount = fine_calc["fine_amount"]
+                    days_overdue_from_penalty = fine_calc["days_overdue"]
+                else:
+                    # For damage/lost, extract from description
+                    fine_match = re.search(r'(?:Fine|Compensation):\s*([\d,]+)\s*VND', penalty.description or '')
+                    fine_amount = int(fine_match.group(1).replace(',', '')) if fine_match else 0
+                    days_overdue_from_penalty = days_overdue
+                
+                penalty_info = {
+                    "penalty_id": penalty.penalty_id,
+                    "penalty_type": penalty.penalty_type.value,
+                    "description": penalty.description,
+                    "fine_amount": fine_amount,
+                    "days_overdue": days_overdue_from_penalty,
+                    "status": penalty.status.value,
+                    "real_time_calculated": penalty.penalty_type == PenaltyTypeEnum.late
+                }
+            elif is_overdue and days_overdue > 0:
+                # No penalty record exists yet, but book is overdue - show potential penalty
+                from app.services.srv_penalty import FINE_RATES
+                potential_fine = days_overdue * FINE_RATES["late_per_day"]
+                penalty_info = {
+                    "penalty_id": None,
+                    "penalty_type": "Late",
+                    "description": f"Overdue: {days_overdue} days. Estimated fine: {int(potential_fine):,} VND",
+                    "fine_amount": int(potential_fine),
+                    "days_overdue": days_overdue,
+                    "status": "Pending",
+                    "real_time_calculated": True,
+                    "auto_calculated": True
+                }
+
             history.append({
                 "borrow_slip_id": r.bs_id,
                 "borrow_detail_id": r.id,
@@ -249,6 +303,7 @@ class HistoryService:
                 "due_date": due_date.isoformat() if due_date else None,
                 "actual_return_date": actual_return.isoformat() if actual_return else None,
                 "status": display_status,
+                "penalty": penalty_info,
                 "book": {
                     "book_id": r.book_id,
                     "title": book.book_title.name if book and book.book_title else "Unknown",

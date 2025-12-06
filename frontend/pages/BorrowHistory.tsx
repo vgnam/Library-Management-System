@@ -225,6 +225,7 @@ export const BorrowHistory: React.FC = () => {
                      Returned On
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Penalty</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -296,6 +297,66 @@ export const BorrowHistory: React.FC = () => {
 
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(book, record.status)}
+                      </td>
+
+                      <td className="px-6 py-4">
+                        {record.penalty ? (
+                          <div className="space-y-1.5 max-w-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                record.penalty.status === 'Paid' 
+                                  ? 'bg-green-100 text-green-700' 
+                                  : record.penalty.status === 'Cancelled'
+                                  ? 'bg-gray-100 text-gray-600'
+                                  : 'bg-red-100 text-red-700'
+                              }`}>
+                                <AlertCircle className="h-3 w-3" />
+                                {record.penalty.penalty_type}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {record.penalty.real_time_calculated && record.penalty.status === 'Pending' && (
+                                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" title="Live updating"></span>
+                                )}
+                                <span className={`text-xs font-bold ${
+                                  record.penalty.status === 'Paid' 
+                                    ? 'text-green-700' 
+                                    : record.penalty.status === 'Cancelled'
+                                    ? 'text-gray-600'
+                                    : 'text-red-700'
+                                }`}>
+                                  {record.penalty.fine_amount.toLocaleString('vi-VN')} VND
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-xs text-gray-600 line-clamp-2" title={record.penalty.description}>
+                              {record.penalty.description}
+                              {record.penalty.real_time_calculated && record.penalty.status === 'Pending' && (
+                                <span className="ml-1 text-orange-600 font-medium">(Updates daily)</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${
+                                record.penalty.status === 'Paid' 
+                                  ? 'bg-green-50 text-green-700 border border-green-200' 
+                                  : record.penalty.status === 'Cancelled'
+                                  ? 'bg-gray-50 text-gray-600 border border-gray-200'
+                                  : 'bg-red-50 text-red-700 border border-red-200'
+                              }`}>
+                                {record.penalty.status === 'Paid' && <CheckCircle className="h-2.5 w-2.5" />}
+                                {record.penalty.status === 'Cancelled' && <AlertCircle className="h-2.5 w-2.5" />}
+                                {record.penalty.status === 'Pending' && <Clock className="h-2.5 w-2.5" />}
+                                {record.penalty.status}
+                              </div>
+                              {record.penalty.days_overdue && record.penalty.days_overdue > 0 && (
+                                <span className="text-[10px] text-red-600 font-medium">
+                                  {record.penalty.days_overdue} day{record.penalty.days_overdue > 1 ? 's' : ''} late
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">No penalty</span>
+                        )}
                       </td>
                     </tr>
                   );

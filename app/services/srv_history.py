@@ -356,6 +356,15 @@ class HistoryService:
         if not reader:
             raise HTTPException(status_code=404, detail="Reader not found")
 
+        # Get card type from reading card
+        from app.models.model_reading_card import ReadingCard
+        reading_card = db.session.query(ReadingCard).filter(
+            ReadingCard.reader_id == reader_id
+        ).first()
+        
+        card_type = reading_card.card_type.value if reading_card and reading_card.card_type else "Standard"
+        max_books = 8 if card_type == "VIP" else 5
+
         now = datetime.utcnow()
         raw_results = db.session.query(
             BorrowSlipDetail.id,
@@ -408,9 +417,15 @@ class HistoryService:
                 "status": display_status
             })
 
+        total_borrowed = len(currently_borrowed_books)
+        remaining_slots = max_books - total_borrowed
+
         return {
-            "total_borrowed": len(currently_borrowed_books),
-            "currently_borrowed_books": currently_borrowed_books
+            "total_borrowed": total_borrowed,
+            "currently_borrowed_books": currently_borrowed_books,
+            "card_type": card_type,
+            "max_books": max_books,
+            "remaining_slots": remaining_slots
         }
 
     @staticmethod

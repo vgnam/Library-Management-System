@@ -321,7 +321,7 @@ export const BookSearch: React.FC = () => {
         {books.map((book) => {
           const bookId = getBookId(book);
           const isSelected = selectedBooks.includes(bookId);
-          const isOutOfStock = typeof book.available_copies === 'number' && book.available_copies === 0;
+          const isOutOfStock = typeof book.available_books === 'number' && book.available_books === 0;
 
           return (
             <div key={bookId} className={`bg-white p-6 rounded-lg border transition-all duration-200 hover:shadow-lg flex flex-col h-full ${isSelected ? 'border-primary ring-1 ring-primary' : 'border-gray-200'} ${isOutOfStock ? 'opacity-75' : ''}`}>
@@ -346,11 +346,11 @@ export const BookSearch: React.FC = () => {
                     Publisher: {book.publisher}
                   </p>
 
-                  {typeof book.available_copies === 'number' && (
+                  {typeof book.available_books === 'number' && (
                     <div className="flex items-center gap-1.5 mt-1">
                       <Layers className="h-3.5 w-3.5 text-gray-400" />
-                      <span className={`text-xs font-bold ${book.available_copies > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {book.available_copies > 0 ? `${book.available_copies} copies left` : 'Out of Stock'}
+                      <span className={`text-xs font-bold ${book.available_books > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {book.available_books > 0 ? `${book.available_books} left` : 'Out of Stock'}
                       </span>
                     </div>
                   )}

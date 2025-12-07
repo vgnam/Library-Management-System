@@ -61,6 +61,7 @@ export const BookSearch: React.FC = () => {
     max_books: number;
     current_active_books: number;
     remaining_slots: number;
+    has_overdue: boolean;
   } | null>(null);
   
   const navigate = useNavigate();
@@ -80,8 +81,14 @@ export const BookSearch: React.FC = () => {
           card_type: res.card_type || 'Standard',
           max_books: res.max_books || 5,
           current_active_books: res.total_borrowed || 0,
-          remaining_slots: res.remaining_slots || 0
+          remaining_slots: res.remaining_slots || 0,
+          has_overdue: res.has_overdue || false
         });
+
+        console.log('Reader Stats Set:', {
+          has_overdue: res.has_overdue === true,
+          remaining_slots: res.remaining_slots || 0
+        }); 
       }
     } catch (err) {
       console.error('Failed to fetch reader stats', err);
@@ -148,6 +155,7 @@ export const BookSearch: React.FC = () => {
   const toggleBookSelection = (bookId: string) => {
     if (!bookId) return;
     
+    console.log('🔍 Toggle Book - readerStats:', readerStats); // ✅ THÊM
     setSelectedBooks(prev => {
       if (prev.includes(bookId)) {
         // Deselecting - always allowed
@@ -156,6 +164,18 @@ export const BookSearch: React.FC = () => {
       } else {
         // Selecting - check limits
         if (readerStats) {
+          console.log('📌 has_overdue value:', readerStats.has_overdue); // ✅ THÊM
+          console.log('📌 has_overdue type:', typeof readerStats.has_overdue); // ✅ THÊM
+        
+          if (readerStats.has_overdue) {
+            console.log('🚫 BLOCKED: User has overdue books!'); // ✅ THÊM
+            setErrorMsg(
+              'Cannot borrow books. You have overdue books. Please return them first.'
+            );
+            setTimeout(() => setErrorMsg(''), 5000);
+            return prev;
+          }
+
           // Number of books being selected in this request
           const booksToSelect = prev.length + 1;
           

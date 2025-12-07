@@ -384,7 +384,7 @@ class HistoryService:
         book_ids = [result.book_id for result in raw_results]
         books = db.session.query(Book).filter(Book.book_id.in_(book_ids)).all()
         book_dict = {b.book_id: b for b in books}
-
+        has_overdue = any(result.detail_status_str == 'overdue' for result in raw_results)
         currently_borrowed_books = []
         for result in raw_results:
             book = book_dict.get(result.book_id)
@@ -425,7 +425,8 @@ class HistoryService:
             "currently_borrowed_books": currently_borrowed_books,
             "card_type": card_type,
             "max_books": max_books,
-            "remaining_slots": remaining_slots
+            "remaining_slots": remaining_slots,
+            "has_overdue": has_overdue
         }
 
     @staticmethod

@@ -128,6 +128,7 @@ export interface CurrentBorrowedResponse {
   card_type?: string;
   max_books?: number;
   remaining_slots?: number;
+  has_overdue?: boolean;
 }
 
 export interface OverdueResponse {

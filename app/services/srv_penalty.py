@@ -116,10 +116,10 @@ class PenaltyService:
             }
             
             # For late penalties, calculate real-time fine
-            if penalty.penalty_type == PenaltyTypeEnum.late and detail.due_date:
+            if penalty.penalty_type == PenaltyTypeEnum.late and detail.return_date:
                 fine_calc = PenaltyService.calculate_current_late_fine(
-                    due_date=detail.due_date,
-                    return_date=detail.return_date
+                    due_date=detail.return_date,
+                    return_date=detail.real_return_date
                 )
                 penalty_info["fine_amount"] = fine_calc["fine_amount"]
                 penalty_info["days_overdue"] = fine_calc["days_overdue"]
@@ -132,9 +132,9 @@ class PenaltyService:
             result["penalties"].append(penalty_info)
         
         # If no penalty exists but book is overdue, calculate potential penalty
-        if not penalties and detail.due_date and detail.return_date is None:
+        if not penalties and detail.return_date and detail.real_return_date is None:
             fine_calc = PenaltyService.calculate_current_late_fine(
-                due_date=detail.due_date
+                due_date=detail.return_date
             )
             if fine_calc["is_overdue"]:
                 result["potential_penalty"] = {

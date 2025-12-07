@@ -372,19 +372,24 @@ export const BorrowHistory: React.FC = () => {
                               )}
                             </div>
                             <div className="flex items-center gap-1.5">
-                              <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${
-                                record.penalty.status === 'Paid' 
-                                  ? 'bg-green-50 text-green-700 border border-green-200' 
-                                  : record.penalty.status === 'Cancelled'
-                                  ? 'bg-gray-50 text-gray-600 border border-gray-200'
-                                  : 'bg-red-50 text-red-700 border border-red-200'
-                              }`}>
-                                {record.penalty.status === 'Paid' && <CheckCircle className="h-2.5 w-2.5" />}
-                                {record.penalty.status === 'Cancelled' && <AlertCircle className="h-2.5 w-2.5" />}
-                                {record.penalty.status === 'Pending' && <Clock className="h-2.5 w-2.5" />}
-                                {record.penalty.status}
-                              </div>
-                              {record.penalty.days_overdue && record.penalty.days_overdue > 0 && (
+                              {/* Only show status badge if not returned or if paid/cancelled */}
+                              {(record.status !== 'Returned' || record.penalty.status !== 'Pending') && (
+                                <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${
+                                  record.penalty.status === 'Paid' 
+                                    ? 'bg-green-50 text-green-700 border border-green-200' 
+                                    : record.penalty.status === 'Cancelled'
+                                    ? 'bg-gray-50 text-gray-600 border border-gray-200'
+                                    : 'bg-red-50 text-red-700 border border-red-200'
+                                }`}>
+                                  {record.penalty.status === 'Paid' && <CheckCircle className="h-2.5 w-2.5" />}
+                                  {record.penalty.status === 'Cancelled' && <AlertCircle className="h-2.5 w-2.5" />}
+                                  {record.penalty.status === 'Pending' && <Clock className="h-2.5 w-2.5" />}
+                                  {record.penalty.status}
+                                </div>
+                              )}
+                              {/* Show days late info only for non-returned or if status is Paid/Cancelled */}
+                              {record.penalty.days_overdue && record.penalty.days_overdue > 0 && 
+                               (record.status !== 'Returned' || record.penalty.status !== 'Pending') && (
                                 <span className="text-[10px] text-red-600 font-medium">
                                   {record.penalty.days_overdue} day{record.penalty.days_overdue > 1 ? 's' : ''} late
                                 </span>

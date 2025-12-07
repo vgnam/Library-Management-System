@@ -225,12 +225,11 @@ class HistoryService:
                     display_status = "Active"
 
             elif detail_status == "returned":
+                display_status = "Returned"
+                # Check if it was returned late (for penalty calculation, but status is still Returned)
                 if actual_return and due_date and actual_return > due_date:
-                    display_status = "Overdue"
                     is_overdue = True
                     days_overdue = (actual_return.date() - due_date.date()).days
-                else:
-                    display_status = "Returned"
 
             elif detail_status == "pendingreturn" or detail_status == "pending_return":
                 display_status = "Pending Return"

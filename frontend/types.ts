@@ -45,7 +45,9 @@ export interface BookSearchResult {
   author: string;
   publisher: string;
   category?: string;
-  available_copies?: number; // Number of physical books available to borrow
+  total_books?: number; // Total number of physical books for this title
+  borrowed_books?: number; // Number of books currently being borrowed
+  available_books?: number; // Number of books available to borrow (total - borrowed)
 }
 
 // Corresponds to the "Book" class provided (Physical Copy)

@@ -8,6 +8,10 @@ from app.models.model_borrow import BorrowStatusEnum
 from app.services.srv_auth import AuthService
 from app.services.srv_borrow import BorrowService
 from app.schemas.sche_base import DataResponse
+from app.models.model_book_title import BookTitle
+from app.models.model_book import Book
+from app.models.model_borrow import BorrowSlip, BorrowSlipDetail, BorrowStatusEnum
+
 
 router = APIRouter(prefix="/books", tags=["Books"])
 auth_service = AuthService()
@@ -95,4 +99,23 @@ def reject_borrow_request(
 
     return DataResponse().success_response(result)
 
+# ===============================================================
+# 5. CANCEL BORROW REQUEST (Reader)
+# ===============================================================
+@router.delete("/borrow-request/{borrow_slip_id}/cancel", summary="Cancel Borrow Request")
+def cancel_borrow_request(
+        borrow_slip_id: str,
+        token: str = Depends(auth_service.reader_oauth2)
+) -> DataResponse:
+    user = auth_service.get_current_user(token)
+    reader = db.session.query(Reader).filter(Reader.user_id == user.user_id).first()
 
+    if not reader:
+        raise HTTPException(status_code=404, detail="Reader not found")
+
+    result = borrow_service.cancel_borrow_request(
+        borrow_slip_id=borrow_slip_id,
+        reader_id=reader.reader_id
+    )
+
+    return DataResponse().success_response(result)

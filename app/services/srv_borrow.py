@@ -103,8 +103,6 @@ class BorrowService:
             book = book_query.first()
 
             if not book:
-                # Nếu không tìm thấy quyển nào rảnh
-                # Lưu ý: Cần rollback hoặc để Exception tự rollback
                 book_info = db.session.query(BookTitle).filter(
                     BookTitle.book_title_id == title_id
                 ).first()
@@ -113,14 +111,14 @@ class BorrowService:
                     status_code=404,
                     detail=f"Book '{book_name}' is currently unavailable (no copies left)."
                 )
-
+            
             # Kiểm tra sách hiếm (Rare)
             if card.card_type != CardTypeEnum.vip and book.book_title.category == "Rare":
                 raise HTTPException(
                     status_code=403,
                     detail=f"Book '{book.book_title.name}' is Rare and restricted to VIPs."
                 )
-
+            
             # Thêm vào chi tiết phiếu
             borrow_detail = BorrowSlipDetail(
                 id=str(uuid.uuid4()),
@@ -184,7 +182,7 @@ class BorrowService:
                     # Cần xử lý rollback hoặc báo lỗi. Ở đây báo lỗi đơn giản.
                     raise HTTPException(
                         status_code=409,
-                        detail=f"Book copy {book.book_id} is already borrowed by someone else."
+                        detail=f"This book is already borrowed by someone else."
                     )
                 book.being_borrowed = True
                 detail.return_date = current_time + loan_period
@@ -221,6 +219,9 @@ class BorrowService:
 
         for detail in details:
             detail.status = BorrowStatusEnum.rejected
+            book = db.session.query(Book).filter(Book.book_id == detail.book_id).first()
+            if book:
+                book.being_borrowed = False 
 
         db.session.commit()
 
@@ -228,3 +229,35 @@ class BorrowService:
             "message": "Borrow request rejected",
             "borrow_slip_id": borrow_slip_id
         }
+    
+    @staticmethod
+    def cancel_borrow_request(borrow_slip_id: str, reader_id: str):
+        """Reader cancels their own pending borrow request"""
+        slip = db.session.query(BorrowSlip).filter(
+            BorrowSlip.bs_id == borrow_slip_id
+        ).first()
+
+        if not slip:
+            raise HTTPException(status_code=404, detail="Borrow request not found")
+
+        if slip.reader_id != reader_id:
+            raise HTTPException(status_code=403, detail="You can only cancel your own requests")
+
+        # Lấy toàn bộ chi tiết của phiếu
+        details = db.session.query(BorrowSlipDetail).filter(
+            BorrowSlipDetail.borrow_slip_id == borrow_slip_id
+        ).all()
+
+        # Gỡ và xóa chi tiết
+        for detail in details:
+            book = db.session.query(Book).filter(Book.book_id == detail.book_id).first()
+            if book:
+                book.being_borrowed = False  # trả lại trạng thái rảnh
+            db.session.delete(detail)
+
+        # Xóa luôn BorrowSlip
+        db.session.delete(slip)
+
+        db.session.commit()
+
+        return {"message": "Borrow request cancelled and removed", "borrow_slip_id": borrow_slip_id}

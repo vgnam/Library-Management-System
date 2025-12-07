@@ -1,6 +1,18 @@
 import { API_BASE_URL } from '../constants';
 import { LoginResponse, SearchResponse, UserRole, BorrowRequest, BorrowStatus, HistoryResponse, CurrentBorrowedResponse, OverdueResponse, RequestReturnBookRequest, ProcessDamageBookRequest, ProcessLostBookRequest, ReaderStatusResponse, ReturnRequest } from '../types';
 
+export interface BookWithAvailability {
+  book_title_id: string;
+  name: string;
+  author: string;
+  publisher: string;
+  category: string;
+  available_count: number;
+  total_count: number;
+  has_pending_request: boolean;
+  is_available: boolean;
+}
+
 class ApiService {
   private token: string | null = localStorage.getItem('token');
 
@@ -235,6 +247,12 @@ class ApiService {
     });
   }
 
+  async cancelBorrowRequest(borrowSlipId: string): Promise<any> {
+    return this.request(`/books/borrow-request/${borrowSlipId}/cancel`, {
+      method: 'DELETE',
+    });
+  }
+
   // --- Return Service (Updated to match backend) ---
 
   async getReturnRequests(): Promise<ReturnRequest[]> {
@@ -337,6 +355,11 @@ class ApiService {
     return res;
   }
 
+  async getBooks(): Promise<{ data: BookWithAvailability[] }> {
+    const response = await this.request<any>('/books');
+    return response.data;
+  }
+  
   async getCurrentlyBorrowed(): Promise<CurrentBorrowedResponse> {
     const res = await this.request<any>('/history/current');
     return res.data || res;

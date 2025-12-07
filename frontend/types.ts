@@ -130,6 +130,7 @@ export interface CurrentBorrowedResponse {
   card_type?: string;
   max_books?: number;
   remaining_slots?: number;
+  has_overdue?: boolean;
 }
 
 export interface OverdueResponse {
@@ -203,4 +204,14 @@ export interface ReaderStatusResponse {
   can_borrow: boolean;
   active_loans: CurrentlyBorrowedBook[];
   overdue_loans: CurrentlyBorrowedBook[];
+}
+
+export interface BookWithAvailability {
+  book_title_id: string;
+  name: string;
+  author: string;
+  total_count: number;
+  available_count: number;
+  has_pending_request: boolean;
+  is_available: boolean;
 }

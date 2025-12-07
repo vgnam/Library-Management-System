@@ -18,7 +18,7 @@ def search_books(
         keyword: Optional[str] = Query(None, description="Fuzzy search on title, author, publisher"),
         publisher: Optional[str] = Query(None, description="Exact match publisher filter"),
         page: int = Query(1, ge=1),
-        page_size: int = Query(10, ge=1, le=100),
+        page_size: int = Query(12, ge=1, le=100),
         token: str = Depends(auth_service.reader_oauth2)
 ) -> DataResponse:
     auth_service.get_current_user(token)

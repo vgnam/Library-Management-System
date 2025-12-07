@@ -2,8 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { Button } from '../components/Button';
-import { Check, X, RefreshCw, Book, Calendar, User, Clock, RotateCcw } from 'lucide-react';
+import { Check, X, RefreshCw, Book, Calendar, User, Clock, RotateCcw, AlertTriangle, AlertCircle } from 'lucide-react';
 import { BorrowRequest, BorrowStatus, ReturnRequest } from '../types';
+import Swal from 'sweetalert2';
 
 export const LibrarianDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'borrow' | 'return'>('borrow');
@@ -36,43 +37,80 @@ export const LibrarianDashboard: React.FC = () => {
     }
   };
 
-  const handleApproveReject = async (id: string, action: 'approve' | 'reject') => {
-    if (!window.confirm(`Are you sure you want to ${action} this request?`)) return;
-
+  const handleApproveReject = async (id: string, action: 'approve' | 'reject') => {  
     setLoading(true);
     setMessage(null);
     try {
       if (action === 'approve') {
         await api.approveRequest(id);
-        setMessage({ type: 'success', text: `Request approved successfully.` });
       } else {
         await api.rejectRequest(id);
-        setMessage({ type: 'success', text: `Request rejected.` });
       }
       fetchData();
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || `Failed to ${action} request.` });
+      Swal.fire({
+        icon: 'error',
+        title: 'Oops...',
+        text: err.message || `Failed to ${action} request.`
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleQuickReturn = async (returnReq: ReturnRequest) => {
-    if (!window.confirm(`Mark "${returnReq.book_title}" as Returned (Good Condition)?`)) return;
-
+    // Tính toán penalty nếu overdue
+    const today = new Date();
+    const dueDate = returnReq.due_date ? new Date(returnReq.due_date) : null;
+    let penaltyInfo = '';
+    
+    if (dueDate && today > dueDate) {
+      const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      const lateFee = daysOverdue * 5000;
+      penaltyInfo = `<br><span style="color: #dc2626; font-weight: 600;">Late Fee: ${lateFee.toLocaleString('vi-VN')} VND (${daysOverdue} day${daysOverdue > 1 ? 's' : ''} overdue)</span>`;
+    }
+  
+    const result = await Swal.fire({
+      title: 'Confirm Return',
+      html: `Mark "${returnReq.book_title}" as Returned (Good Condition)${penaltyInfo}`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#10b981',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, mark as returned',
+      cancelButtonText: 'Cancel'
+    });
+  
+    if (!result.isConfirmed) return;
+  
     setLoading(true);
     setMessage(null);
+  
     try {
       await api.processReturn(returnReq.borrow_detail_id);
-      setMessage({ type: 'success', text: `Book returned successfully.` });
+  
+      Swal.fire({
+        icon: "success",
+        title: "Book Returned!",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+  
       fetchData();
+  
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || `Failed to return book.` });
+      Swal.fire({
+        icon: "error",
+        title: "Failed",
+        text: err.message || "Failed to return book.",
+        timer: 2000,
+        showConfirmButton: false,
+      });
     } finally {
       setLoading(false);
     }
   };
-
+  
   const getStatusBadge = (status: BorrowStatus) => {
     switch (status) {
       case BorrowStatus.PENDING:
@@ -196,35 +234,75 @@ export const LibrarianDashboard: React.FC = () => {
               </div>
             ) : (
               <div className="grid gap-4">
-                {returnRequests.map((req) => (
-                   <div key={req.borrow_detail_id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 transition hover:shadow-md flex flex-col md:flex-row justify-between gap-4">
-                      <div className="space-y-2">
-                         <div className="flex items-center gap-2">
-                             <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded">RETURN REQUESTED</span>
-                         </div>
-                         <h4 className="font-bold text-lg text-gray-900">{req.book_title}</h4>
-                         <div className="flex items-center gap-4 text-sm mt-2">
-                            <div className="flex items-center gap-1 text-gray-700">
-                               <User className="h-4 w-4 text-gray-400" />
-                               {req.reader_name}
+                {returnRequests.map((req) => {
+                  // Tính penalty nếu overdue
+                  const today = new Date();
+                  const dueDate = req.due_date ? new Date(req.due_date) : null;
+                  let isOverdue = false;
+                  let daysOverdue = 0;
+                  let lateFee = 0;
+                  
+                  if (dueDate && today > dueDate) {
+                    isOverdue = true;
+                    daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+                    lateFee = daysOverdue * 5000;
+                  }
+
+                  return (
+                    <div key={req.borrow_detail_id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 transition hover:shadow-md flex flex-col md:flex-row justify-between gap-4">
+                      <div className="space-y-2 flex-grow">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded">RETURN REQUESTED</span>
+                          {isOverdue && (
+                            <span className="bg-red-100 text-red-700 text-xs font-bold px-2.5 py-0.5 rounded flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" /> OVERDUE
+                            </span>
+                          )}
+                        </div>
+                        
+                        <h4 className="font-bold text-lg text-gray-900">{req.book_title}</h4>
+                        
+                        <div className="flex items-center gap-4 text-sm mt-2">
+                          <div className="flex items-center gap-1 text-gray-700">
+                            <User className="h-4 w-4 text-gray-400" />
+                            {req.reader_name}
+                          </div>
+                          <div className="flex items-center gap-1 text-gray-700">
+                            <Calendar className="h-4 w-4 text-gray-400" />
+                            Req: {req.request_date ? new Date(req.request_date).toLocaleDateString() : 'N/A'}
+                          </div>
+                          <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 font-semibold' : 'text-gray-700'}`}>
+                            <Clock className="h-4 w-4" />
+                            Due: {req.due_date ? new Date(req.due_date).toLocaleDateString() : 'N/A'}
+                          </div>
+                        </div>
+
+                        {/* PENALTY INFO - THÊM ĐOẠN NÀY */}
+                        {isOverdue && (
+                          <div className="bg-red-50 border border-red-200 rounded-md p-3 mt-2">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-sm font-semibold text-red-900">
+                                  Overdue Penalty
+                                </p>
+                                <p className="text-xs text-red-700 mt-0.5">
+                                  {daysOverdue} day{daysOverdue > 1 ? 's' : ''} late • <span className="font-bold">{lateFee.toLocaleString('vi-VN')} VND</span>
+                                </p>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1 text-gray-700">
-                               <Calendar className="h-4 w-4 text-gray-400" />
-                               Req Date: {req.request_date ? new Date(req.request_date).toLocaleDateString() : 'N/A'}
-                            </div>
-                            <div className="flex items-center gap-1 text-gray-700">
-                               <Clock className="h-4 w-4 text-gray-400" />
-                               Due: {req.due_date ? new Date(req.due_date).toLocaleDateString() : 'N/A'}
-                            </div>
-                         </div>
+                          </div>
+                        )}
                       </div>
+                      
                       <div className="flex items-center md:w-48">
-                         <Button onClick={() => handleQuickReturn(req)} disabled={loading} className="w-full flex items-center justify-center gap-2">
-                            <RotateCcw className="h-4 w-4" /> Process Return
-                         </Button>
+                        <Button onClick={() => handleQuickReturn(req)} disabled={loading} className="w-full flex items-center justify-center gap-2">
+                          <RotateCcw className="h-4 w-4" /> Process Return
+                        </Button>
                       </div>
-                   </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

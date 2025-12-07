@@ -4,6 +4,8 @@ import { BorrowHistoryRecord, HistoryBookInfo } from '../types';
 import { Button } from '../components/Button';
 import { BookOpen, Calendar, Clock, AlertCircle, CheckCircle, RotateCcw, ChevronLeft, ChevronRight, AlertTriangle, Hourglass } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
+
 
 const FILTER_TABS = [
   { label: 'All', value: 'All' },
@@ -81,6 +83,34 @@ export const BorrowHistory: React.FC = () => {
       });
     } catch (err) {
       console.error("Failed to fetch stats", err);
+    }
+  };
+
+  const handleCancelRequest = async (borrowSlipId: string, bookTitle: string) => {
+    setLoading(true);
+  
+    try {
+      await api.cancelBorrowRequest(borrowSlipId);
+  
+      setHistory(prev => prev.filter(item => item.borrow_slip_id !== borrowSlipId));
+
+      await fetchHistory();
+  
+      Swal.fire({
+        title: "Cancelled!",
+        text: `You cancelled the request for "${bookTitle}".`,
+        timer: 1200,
+        showConfirmButton: false,
+      });
+  
+    } catch (err: any) {
+      Swal.fire({
+        icon: "error",
+        title: "Failed",
+        text: err.message || "Failed to cancel request."
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -321,12 +351,22 @@ export const BorrowHistory: React.FC = () => {
                          </div>
                       </td>
 
+
                       <td className="px-6 py-4 whitespace-nowrap">
-                         {book.actual_return_date ? (
+                      {book.actual_return_date ? (
                            <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
                               <CheckCircle className="h-4 w-4 text-green-500" />
                               {formatDate(book.actual_return_date)}
                            </div>
+                         ) : (book.status?.toLowerCase() === 'pending' || record.status?.toLowerCase() === 'pending') ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCancelRequest(record.borrow_slip_id, book.title)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-300"
+                          >
+                            Cancel Request
+                          </Button>
                          ) : (
                            <span className="text-gray-400 text-sm pl-6">-</span>
                          )}

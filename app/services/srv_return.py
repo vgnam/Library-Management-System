@@ -164,10 +164,10 @@ class ReturnService:
 
         # Calculate fees with proper timezone handling
         return_datetime = datetime.now()
-        if not due_date:
-            raise HTTPException(status_code=400, detail="Due to date not found")
+        
         due_date = detail.return_date  # This is the due_date
-
+        if not due_date:
+                    raise HTTPException(status_code=400, detail="Due to date not found")
         # Ensure due_date is timezone-aware for comparison
         if due_date.tzinfo is None:
             due_date = due_date.replace(tzinfo=None)

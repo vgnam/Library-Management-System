@@ -1,12 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { Button } from '../components/Button';
-import { Check, X, RefreshCw, Book, Calendar, User, Clock, RotateCcw, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Check, X, RefreshCw, Book, Calendar, User, Clock, RotateCcw, AlertTriangle, AlertCircle, Package } from 'lucide-react';
 import { BorrowRequest, BorrowStatus, ReturnRequest } from '../types';
 import Swal from 'sweetalert2';
+import { useNavigate } from 'react-router-dom';
 
 export const LibrarianDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'borrow' | 'return'>('borrow');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -135,10 +136,16 @@ export const LibrarianDashboard: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Librarian Dashboard</h1>
           <p className="text-gray-500 mt-1">Manage borrowing approvals and returns</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchData} disabled={refreshing}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => navigate('/acquisition')}>
+            <Package className="h-4 w-4 mr-2" />
+            Book Acquisition
+          </Button>
+          <Button variant="outline" size="sm" onClick={fetchData} disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {message && (

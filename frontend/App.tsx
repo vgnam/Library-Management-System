@@ -9,6 +9,7 @@ import { LibrarianDashboard } from './pages/LibrarianDashboard';
 import { BorrowHistory } from './pages/BorrowHistory';
 import { ReturnBook } from './pages/ReturnBook';
 import { ReaderReturnRequest } from './pages/ReaderReturnRequest';
+import { BookAcquisition } from './pages/BookAcquisition';
 import { api } from './services/api';
 import { UserRole } from './types';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -88,6 +89,12 @@ const App: React.FC = () => {
             <Route path="/librarian/return" element={
               <ProtectedRoute allowedRoles={[UserRole.LIBRARIAN, UserRole.MANAGER]}>
                 <ReturnBook />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/acquisition" element={
+              <ProtectedRoute allowedRoles={[UserRole.LIBRARIAN, UserRole.MANAGER]}>
+                <BookAcquisition />
               </ProtectedRoute>
             } />
 

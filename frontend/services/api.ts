@@ -59,7 +59,12 @@ class ApiService {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    // 2. Merge headers from options
+    // 2. Add Content-Type for JSON requests
+    if (options.body && typeof options.body === 'string') {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    // 3. Merge headers from options
     if (options.headers) {
       if (options.headers instanceof Headers) {
         options.headers.forEach((v, k) => {
@@ -368,6 +373,44 @@ class ApiService {
   async getOverdueBooks(): Promise<OverdueResponse> {
     const res = await this.request<any>('/history/overdue');
     return res.data || res;
+  }
+
+  // --- Acquisition ---
+  async getPublishers(): Promise<any> {
+    return this.request<any>('/acquisition/publishers');
+  }
+
+  async createBookTitle(data: {
+    name: string;
+    author: string;
+    category: string;
+    publisher_id: string;
+  }): Promise<any> {
+    return this.request<any>('/acquisition/book-title/create', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async createAcquisitionSlip(data: {
+    books: Array<{
+      book_title_id: string;
+      quantity: number;
+      price: number;
+    }>;
+  }): Promise<any> {
+    return this.request<any>('/acquisition/create', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async getAcquisitionHistory(page: number = 1, pageSize: number = 10): Promise<any> {
+    return this.request<any>(`/acquisition/history?page=${page}&page_size=${pageSize}`);
+  }
+
+  async getAcquisitionDetail(acqId: string): Promise<any> {
+    return this.request<any>(`/acquisition/detail/${acqId}`);
   }
 }
 

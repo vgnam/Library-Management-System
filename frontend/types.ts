@@ -215,3 +215,50 @@ export interface BookWithAvailability {
   has_pending_request: boolean;
   is_available: boolean;
 }
+
+// Acquisition interfaces
+export interface Publisher {
+  pub_id: string;
+  name: string;
+  address?: string;
+}
+
+export interface BookItemForAcquisition {
+  book_title_id: string;
+  quantity: number;
+  price: number;
+}
+
+export interface AcquisitionSlipDetail {
+  detail_id?: string;
+  book_title_id: string;
+  book_name: string;
+  author: string;
+  category?: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
+}
+
+export interface AcquisitionSlip {
+  acq_id: string;
+  librarian_id: string;
+  librarian_name: string;
+  acc_date: string;
+  total_items: number;
+  total_amount: number;
+  details?: AcquisitionSlipDetail[];
+  details_count?: number;
+}
+
+export interface AcquisitionHistoryResponse {
+  success: boolean;
+  message: string;
+  data: {
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+    data: AcquisitionSlip[];
+  };
+}

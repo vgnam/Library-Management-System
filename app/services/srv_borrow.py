@@ -70,7 +70,44 @@ class BorrowService:
             ReadingCard.reader_id == reader.reader_id
         ).first()
 
-        if not card or card.status != CardStatusEnum.active:
+        if not card:
+            raise HTTPException(status_code=403, detail="Reading card not found")
+        
+        # AUTO-SUSPEND: Check for overdue books and auto-suspend if needed
+        from app.services.srv_history import HistoryService
+        overdue_result = HistoryService.get_overdue_books(reader.reader_id)
+        overdue_count = overdue_result.get("total_overdue", 0)
+        
+        if overdue_count > 0 and card.status == CardStatusEnum.active:
+            # Auto-suspend user with overdue books
+            card.status = CardStatusEnum.suspended
+            db.session.commit()
+            raise HTTPException(
+                status_code=403,
+                detail=f"Your card has been suspended due to {overdue_count} overdue book(s). Please return all overdue books before borrowing again."
+            )
+        
+        # Check for blocked status (permanent)
+        if card.status == CardStatusEnum.blocked:
+            raise HTTPException(
+                status_code=403, 
+                detail=f"Reading card is permanently blocked. Cannot borrow books. (Infractions: {reader.infraction_count})"
+            )
+        
+        # Check for suspended status (temporary ban)
+        if card.status == CardStatusEnum.suspended:
+            if overdue_count > 0:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Reading card is suspended. You have {overdue_count} overdue book(s). Please return all overdue books before borrowing again."
+                )
+            else:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Reading card is suspended. Please contact library staff to resolve your account status."
+                )
+        
+        if card.status != CardStatusEnum.active:
             raise HTTPException(status_code=403, detail="Reading card is not active")
 
         # Tạo phiếu mượn (Pending)
@@ -156,11 +193,44 @@ class BorrowService:
                 detail=f"Borrow slip status is {borrow_slip.status}, cannot approve."
             )
 
-        # Tính hạn trả
+        # Check if reader's card is blocked before approving
         card = db.session.query(ReadingCard).filter(
             ReadingCard.reader_id == borrow_slip.reader_id
         ).first()
+        
+        reader = db.session.query(Reader).filter(
+            Reader.reader_id == borrow_slip.reader_id
+        ).first()
+        
+        if card and card.status == CardStatusEnum.blocked:
+            borrow_slip.status = BorrowStatusEnum.rejected
+            db.session.commit()
+            raise HTTPException(
+                status_code=403,
+                detail=f"Cannot approve: Reader's card is permanently blocked (Infractions: {reader.infraction_count if reader else 0})"
+            )
+        
+        # Check for suspended status
+        if card and card.status == CardStatusEnum.suspended:
+            from app.services.srv_history import HistoryService
+            overdue_result = HistoryService.get_overdue_books(borrow_slip.reader_id)
+            overdue_count = overdue_result.get("total_overdue", 0)
+            
+            borrow_slip.status = BorrowStatusEnum.rejected
+            db.session.commit()
+            
+            if overdue_count > 0:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Cannot approve: Reader's card is suspended due to {overdue_count} overdue book(s). Reader must return all overdue books first."
+                )
+            else:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Cannot approve: Reader's card is suspended. Contact library administrator."
+                )
 
+        # Tính hạn trả
         loan_days = 60 if card.card_type == CardTypeEnum.vip else 45
         loan_period = timedelta(days=loan_days)
         current_time = datetime.now(tz=timezone(timedelta(hours=7)))

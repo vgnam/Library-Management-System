@@ -16,6 +16,13 @@ export enum ReaderType {
   VIP = 'vip'
 }
 
+export enum CardStatus {
+  ACTIVE = 'Active',
+  EXPIRED = 'Expired',
+  SUSPENDED = 'Suspended',
+  BLOCKED = 'Blocked'
+}
+
 // Matches Python BorrowStatusEnum exactly
 export enum BorrowStatus {
   PENDING = 'Pending',
@@ -198,6 +205,7 @@ export interface ReaderStatusResponse {
   full_name: string;
   card_type: string;
   card_status: string;
+  infraction_count?: number;
   borrow_limit: number;
   current_borrowed_count: number;
   available_slots: number;

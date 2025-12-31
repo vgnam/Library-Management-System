@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from app.models.model_borrow import BorrowSlip, BorrowSlipDetail, BorrowStatusEnum
 from app.models.model_book import Book
 from app.models.model_reader import Reader
+from app.models.model_reading_card import ReadingCard, CardStatusEnum
 from app.services.srv_penalty import PenaltyService
 
 import pytz
@@ -177,6 +178,39 @@ class ReturnService:
         days_overdue = (return_datetime.date() - due_date.date()).days if is_overdue else 0
         
         late_fee = days_overdue * 5000 if is_overdue else 0
+        
+        # ========================================
+        # INFRACTION TRACKING & CARD BLOCKING
+        # ========================================
+        reader = db.session.query(Reader).filter(Reader.reader_id == slip.reader_id).first()
+        if not reader:
+            raise HTTPException(status_code=404, detail="Reader not found")
+        
+        reading_card = db.session.query(ReadingCard).filter(
+            ReadingCard.reader_id == reader.reader_id
+        ).first()
+        
+        infraction_added = False
+        card_blocked = False
+        block_reason = None
+        
+        # Rule 3: 30+ days late = immediate permanent block
+        if days_overdue >= 30:
+            if reading_card:
+                reading_card.status = CardStatusEnum.blocked
+            card_blocked = True
+            block_reason = f"Returned book {days_overdue} days late (≥30 days)"
+        # Rule 1: >5 days late = add infraction
+        elif days_overdue > 5:
+            reader.infraction_count += 1
+            infraction_added = True
+            
+            # Rule 2: 3 infractions = permanent block
+            if reader.infraction_count >= 3:
+                if reading_card:
+                    reading_card.status = CardStatusEnum.blocked
+                card_blocked = True
+                block_reason = f"Accumulated {reader.infraction_count} infractions"
 
         # Set actual return date
         detail.real_return_date = return_datetime
@@ -239,10 +273,28 @@ class ReturnService:
         if all_returned:
             slip.status = BorrowStatusEnum.returned
 
+        # AUTO-UNSUSPEND: Check if reader has no more overdue books and unsuspend if suspended
+        if reading_card and reading_card.status == CardStatusEnum.suspended:
+            # Check for remaining overdue books
+            from app.services.srv_history import HistoryService
+            try:
+                overdue_result = HistoryService.get_overdue_books(reader.reader_id)
+                remaining_overdue = overdue_result.get("total_overdue", 0)
+                
+                if remaining_overdue == 0:
+                    # No more overdue books - unsuspend the card
+                    reading_card.status = CardStatusEnum.active
+                    card_unsuspended = True
+                else:
+                    card_unsuspended = False
+            except:
+                card_unsuspended = False
+        else:
+            card_unsuspended = False
+
         db.session.commit()
 
-        # Get user_id from reader
-        reader = db.session.query(Reader).filter(Reader.reader_id == slip.reader_id).first()
+        # Get user_id from reader (already fetched above)
         user_id = reader.user_id if reader else "unknown"
 
         response = {
@@ -259,7 +311,12 @@ class ReturnService:
             "condition_fee": condition_fee,
             "total_fee": total_fee,
             "status": detail.status.value,
-            "borrow_slip_status": slip.status.value
+            "borrow_slip_status": slip.status.value,
+            "infraction_added": infraction_added,
+            "total_infractions": reader.infraction_count if reader else 0,
+            "card_blocked": card_blocked,
+            "block_reason": block_reason,
+            "card_unsuspended": card_unsuspended
         }
 
         if condition == "damaged":
@@ -357,4 +414,44 @@ class ReturnService:
             "active_borrows": active_borrows,
             "overdue_borrows": overdue_borrows,
             "total_active": active_borrows + overdue_borrows + pending_returns
+        }
+
+    @staticmethod
+    def get_reader_status(reader_id: str) -> dict:
+        """Get comprehensive reader status for librarian return interface"""
+        reader = db.session.query(Reader).filter(Reader.reader_id == reader_id).first()
+        if not reader:
+            raise HTTPException(status_code=404, detail="Reader not found")
+
+        # Get reading card
+        reading_card = db.session.query(ReadingCard).filter(
+            ReadingCard.reader_id == reader_id
+        ).first()
+        
+        if not reading_card:
+            raise HTTPException(status_code=404, detail="Reading card not found")
+
+        # Get card type
+        card_type = reading_card.card_type.value if reading_card.card_type else "Standard"
+        max_books = 8 if card_type == "VIP" else 5
+
+        # Get all active loans (Active, Overdue, PendingReturn)
+        from app.services.srv_history import HistoryService
+        currently_borrowed = HistoryService.get_currently_borrowed_books(reader_id)
+        
+        active_loans = currently_borrowed.get("currently_borrowed_books", [])
+        overdue_loans = [book for book in active_loans if book.get("is_overdue", False)]
+
+        return {
+            "reader_id": reader_id,
+            "full_name": reader.user.full_name if reader.user else "Unknown",
+            "card_type": card_type,
+            "card_status": reading_card.status.value if reading_card.status else "Unknown",
+            "infraction_count": reader.infraction_count,
+            "borrow_limit": max_books,
+            "current_borrowed_count": len(active_loans),
+            "available_slots": max(0, max_books - len(active_loans)),
+            "can_borrow": reading_card.status == CardStatusEnum.active and len(active_loans) < max_books,
+            "active_loans": active_loans,
+            "overdue_loans": overdue_loans
         }

@@ -63,3 +63,14 @@ def get_pending_returns(
     # Lấy danh sách chi tiết đang chờ trả
     pending_details = ReturnService.get_pending_return_requests()
     return DataResponse().success_response(pending_details)
+
+
+@router.get("/reader-status/{reader_id}", summary="Get reader status for returns")
+def get_reader_status(
+    reader_id: str,
+    token: str = Depends(auth_service.librarian_oauth2)
+) -> DataResponse:
+    """Get comprehensive reader status including active loans, infractions, and card status"""
+    auth_service.get_current_user(token)
+    result = ReturnService.get_reader_status(reader_id)
+    return DataResponse().success_response(result)

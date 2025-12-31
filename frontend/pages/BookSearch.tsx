@@ -219,8 +219,15 @@ export const BookSearch: React.FC = () => {
          navigate('/login');
       }
       const msg = err instanceof Error ? err.message : String(err);
-      setErrorMsg(msg || 'Failed to create request');
-      setTimeout(() => setErrorMsg(''), 5000);
+      
+      // Check if error is about suspension or overdue books
+      if (msg.includes('suspended') || msg.includes('overdue')) {
+        setWarningMsg(msg);
+        setTimeout(() => setWarningMsg(''), 8000);
+      } else {
+        setErrorMsg(msg || 'Failed to create request');
+        setTimeout(() => setErrorMsg(''), 5000);
+      }
     } finally {
       setLoading(false);
     }
@@ -288,6 +295,21 @@ export const BookSearch: React.FC = () => {
       {/* Reader Stats Info */}
       {readerStats && (
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-5 rounded-lg shadow-sm">
+          {/* OVERDUE WARNING BANNER */}
+          {readerStats.has_overdue && (
+            <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-red-800">⚠️ Account Alert: Overdue Books Detected</p>
+                  <p className="text-xs text-red-700 mt-1">
+                    You have overdue books. Your account may be suspended. Please return overdue books immediately to avoid penalties.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">

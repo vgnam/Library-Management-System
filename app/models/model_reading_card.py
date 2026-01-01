@@ -13,6 +13,7 @@ class CardStatusEnum(str, enum.Enum):
     active = "Active"
     expired = "Expired"
     suspended = "Suspended"
+    blocked = "Blocked"
 
 
 class ReadingCard(Base):

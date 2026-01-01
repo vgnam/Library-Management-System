@@ -4,6 +4,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 import uuid
 from sqlalchemy import desc
+import pytz
 
 from app.models.model_book_title import BookTitle
 from app.models.model_borrow import BorrowSlip, BorrowSlipDetail, BorrowStatusEnum
@@ -12,7 +13,10 @@ from app.models.model_reading_card import ReadingCard, CardTypeEnum, CardStatusE
 from app.models.model_book import Book
 from app.models.model_librarian import Librarian
 
+from datetime import datetime, timezone, timedelta
 
+# Tạo timezone UTC+7
+tz_vn = timezone(timedelta(hours=7))
 class BorrowService:
     """Service for handling borrow request operations"""
 
@@ -66,7 +70,44 @@ class BorrowService:
             ReadingCard.reader_id == reader.reader_id
         ).first()
 
-        if not card or card.status != CardStatusEnum.active:
+        if not card:
+            raise HTTPException(status_code=403, detail="Reading card not found")
+        
+        # AUTO-SUSPEND: Check for overdue books and auto-suspend if needed
+        from app.services.srv_history import HistoryService
+        overdue_result = HistoryService.get_overdue_books(reader.reader_id)
+        overdue_count = overdue_result.get("total_overdue", 0)
+        
+        if overdue_count > 0 and card.status == CardStatusEnum.active:
+            # Auto-suspend user with overdue books
+            card.status = CardStatusEnum.suspended
+            db.session.commit()
+            raise HTTPException(
+                status_code=403,
+                detail=f"Your card has been suspended due to {overdue_count} overdue book(s). Please return all overdue books before borrowing again."
+            )
+        
+        # Check for blocked status (permanent)
+        if card.status == CardStatusEnum.blocked:
+            raise HTTPException(
+                status_code=403, 
+                detail=f"Reading card is permanently blocked. Cannot borrow books. (Infractions: {reader.infraction_count})"
+            )
+        
+        # Check for suspended status (temporary ban)
+        if card.status == CardStatusEnum.suspended:
+            if overdue_count > 0:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Reading card is suspended. You have {overdue_count} overdue book(s). Please return all overdue books before borrowing again."
+                )
+            else:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Reading card is suspended. Please contact library staff to resolve your account status."
+                )
+        
+        if card.status != CardStatusEnum.active:
             raise HTTPException(status_code=403, detail="Reading card is not active")
 
         # Tạo phiếu mượn (Pending)
@@ -75,7 +116,7 @@ class BorrowService:
             bs_id=borrow_slip_id,
             reader_id=reader.reader_id,
             librarian_id=None,
-            borrow_date=datetime.utcnow(),
+            borrow_date=datetime.now(tz=timezone(timedelta(hours=7))),
             status=BorrowStatusEnum.pending
         )
         db.session.add(borrow_slip)
@@ -99,8 +140,6 @@ class BorrowService:
             book = book_query.first()
 
             if not book:
-                # Nếu không tìm thấy quyển nào rảnh
-                # Lưu ý: Cần rollback hoặc để Exception tự rollback
                 book_info = db.session.query(BookTitle).filter(
                     BookTitle.book_title_id == title_id
                 ).first()
@@ -109,14 +148,14 @@ class BorrowService:
                     status_code=404,
                     detail=f"Book '{book_name}' is currently unavailable (no copies left)."
                 )
-
+            
             # Kiểm tra sách hiếm (Rare)
             if card.card_type != CardTypeEnum.vip and book.book_title.category == "Rare":
                 raise HTTPException(
                     status_code=403,
                     detail=f"Book '{book.book_title.name}' is Rare and restricted to VIPs."
                 )
-
+            
             # Thêm vào chi tiết phiếu
             borrow_detail = BorrowSlipDetail(
                 id=str(uuid.uuid4()),
@@ -154,15 +193,47 @@ class BorrowService:
                 detail=f"Borrow slip status is {borrow_slip.status}, cannot approve."
             )
 
-        # Tính hạn trả
+        # Check if reader's card is blocked before approving
         card = db.session.query(ReadingCard).filter(
             ReadingCard.reader_id == borrow_slip.reader_id
         ).first()
+        
+        reader = db.session.query(Reader).filter(
+            Reader.reader_id == borrow_slip.reader_id
+        ).first()
+        
+        if card and card.status == CardStatusEnum.blocked:
+            borrow_slip.status = BorrowStatusEnum.rejected
+            db.session.commit()
+            raise HTTPException(
+                status_code=403,
+                detail=f"Cannot approve: Reader's card is permanently blocked (Infractions: {reader.infraction_count if reader else 0})"
+            )
+        
+        # Check for suspended status
+        if card and card.status == CardStatusEnum.suspended:
+            from app.services.srv_history import HistoryService
+            overdue_result = HistoryService.get_overdue_books(borrow_slip.reader_id)
+            overdue_count = overdue_result.get("total_overdue", 0)
+            
+            borrow_slip.status = BorrowStatusEnum.rejected
+            db.session.commit()
+            
+            if overdue_count > 0:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Cannot approve: Reader's card is suspended due to {overdue_count} overdue book(s). Reader must return all overdue books first."
+                )
+            else:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Cannot approve: Reader's card is suspended. Contact library administrator."
+                )
 
+        # Tính hạn trả
         loan_days = 60 if card.card_type == CardTypeEnum.vip else 45
         loan_period = timedelta(days=loan_days)
-        current_time = datetime.utcnow()
-
+        current_time = datetime.now(tz=timezone(timedelta(hours=7)))
         # Cập nhật phiếu
         borrow_slip.status = BorrowStatusEnum.active
         borrow_slip.librarian_id = librarian.lib_id
@@ -181,7 +252,7 @@ class BorrowService:
                     # Cần xử lý rollback hoặc báo lỗi. Ở đây báo lỗi đơn giản.
                     raise HTTPException(
                         status_code=409,
-                        detail=f"Book copy {book.book_id} is already borrowed by someone else."
+                        detail=f"This book is already borrowed by someone else."
                     )
                 book.being_borrowed = True
                 detail.return_date = current_time + loan_period
@@ -198,7 +269,7 @@ class BorrowService:
 
     @staticmethod
     def reject_borrow_request(borrow_slip_id: str, librarian: Librarian):
-        """Reject a pending borrow request"""
+        """Reject a pending borrow request and update all details to 'rejected'"""
         borrow_slip = db.session.query(BorrowSlip).filter(
             BorrowSlip.bs_id == borrow_slip_id
         ).first()
@@ -209,11 +280,54 @@ class BorrowService:
         if borrow_slip.status != BorrowStatusEnum.pending:
             raise HTTPException(status_code=400, detail="Borrow slip is not pending")
 
+        # Cập nhật trạng thái phiếu mượn
         borrow_slip.status = BorrowStatusEnum.rejected
-        # Không cần set being_borrowed = False vì lúc tạo request chưa set True
+
+        details = db.session.query(BorrowSlipDetail).filter(
+            BorrowSlipDetail.borrow_slip_id == borrow_slip_id
+        ).all()
+
+        for detail in details:
+            detail.status = BorrowStatusEnum.rejected
+            book = db.session.query(Book).filter(Book.book_id == detail.book_id).first()
+            if book:
+                book.being_borrowed = False 
+
         db.session.commit()
 
         return {
             "message": "Borrow request rejected",
             "borrow_slip_id": borrow_slip_id
         }
+    
+    @staticmethod
+    def cancel_borrow_request(borrow_slip_id: str, reader_id: str):
+        """Reader cancels their own pending borrow request"""
+        slip = db.session.query(BorrowSlip).filter(
+            BorrowSlip.bs_id == borrow_slip_id
+        ).first()
+
+        if not slip:
+            raise HTTPException(status_code=404, detail="Borrow request not found")
+
+        if slip.reader_id != reader_id:
+            raise HTTPException(status_code=403, detail="You can only cancel your own requests")
+
+        # Lấy toàn bộ chi tiết của phiếu
+        details = db.session.query(BorrowSlipDetail).filter(
+            BorrowSlipDetail.borrow_slip_id == borrow_slip_id
+        ).all()
+
+        # Gỡ và xóa chi tiết
+        for detail in details:
+            book = db.session.query(Book).filter(Book.book_id == detail.book_id).first()
+            if book:
+                book.being_borrowed = False  # trả lại trạng thái rảnh
+            db.session.delete(detail)
+
+        # Xóa luôn BorrowSlip
+        db.session.delete(slip)
+
+        db.session.commit()
+
+        return {"message": "Borrow request cancelled and removed", "borrow_slip_id": borrow_slip_id}

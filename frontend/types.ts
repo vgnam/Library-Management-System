@@ -16,6 +16,13 @@ export enum ReaderType {
   VIP = 'vip'
 }
 
+export enum CardStatus {
+  ACTIVE = 'Active',
+  EXPIRED = 'Expired',
+  SUSPENDED = 'Suspended',
+  BLOCKED = 'Blocked'
+}
+
 // Matches Python BorrowStatusEnum exactly
 export enum BorrowStatus {
   PENDING = 'Pending',
@@ -45,7 +52,9 @@ export interface BookSearchResult {
   author: string;
   publisher: string;
   category?: string;
-  available_copies?: number; // Number of physical books available to borrow
+  total_books?: number; // Total number of physical book copies
+  borrowed_books?: number; // Number of copies currently borrowed
+  available_books?: number; // Number of copies available to borrow
 }
 
 // Corresponds to the "Book" class provided (Physical Copy)
@@ -76,6 +85,18 @@ export interface HistoryBookInfo {
   status: string;
 }
 
+// Penalty information
+export interface PenaltyInfo {
+  penalty_id: string | null;
+  penalty_type: string;
+  description: string;
+  fine_amount: number;
+  days_overdue?: number;
+  status: string;
+  real_time_calculated?: boolean;
+  auto_calculated?: boolean;
+}
+
 // Top level history record (Matches provided JSON structure)
 export interface BorrowHistoryRecord {
   borrow_slip_id?: string;
@@ -84,6 +105,7 @@ export interface BorrowHistoryRecord {
   due_date: string | null;      // Slip Due Date
   actual_return_date?: string | null;
   status: string;               // Slip Status
+  penalty?: PenaltyInfo | null; // Penalty information if exists
   book: HistoryBookInfo;        // Nested book details
 }
 
@@ -112,6 +134,10 @@ export interface CurrentlyBorrowedBook {
 export interface CurrentBorrowedResponse {
   total_borrowed: number;
   currently_borrowed_books: CurrentlyBorrowedBook[];
+  card_type?: string;
+  max_books?: number;
+  remaining_slots?: number;
+  has_overdue?: boolean;
 }
 
 export interface OverdueResponse {
@@ -179,10 +205,68 @@ export interface ReaderStatusResponse {
   full_name: string;
   card_type: string;
   card_status: string;
+  infraction_count?: number;
   borrow_limit: number;
   current_borrowed_count: number;
   available_slots: number;
   can_borrow: boolean;
   active_loans: CurrentlyBorrowedBook[];
   overdue_loans: CurrentlyBorrowedBook[];
+}
+
+export interface BookWithAvailability {
+  book_title_id: string;
+  name: string;
+  author: string;
+  total_count: number;
+  available_count: number;
+  has_pending_request: boolean;
+  is_available: boolean;
+}
+
+// Acquisition interfaces
+export interface Publisher {
+  pub_id: string;
+  name: string;
+  address?: string;
+}
+
+export interface BookItemForAcquisition {
+  book_title_id: string;
+  quantity: number;
+  price: number;
+}
+
+export interface AcquisitionSlipDetail {
+  detail_id?: string;
+  book_title_id: string;
+  book_name: string;
+  author: string;
+  category?: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
+}
+
+export interface AcquisitionSlip {
+  acq_id: string;
+  librarian_id: string;
+  librarian_name: string;
+  acc_date: string;
+  total_items: number;
+  total_amount: number;
+  details?: AcquisitionSlipDetail[];
+  details_count?: number;
+}
+
+export interface AcquisitionHistoryResponse {
+  success: boolean;
+  message: string;
+  data: {
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+    data: AcquisitionSlip[];
+  };
 }

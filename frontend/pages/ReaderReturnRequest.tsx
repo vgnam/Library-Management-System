@@ -5,6 +5,8 @@ import { CurrentlyBorrowedBook, BorrowStatus } from '../types';
 import { Button } from '../components/Button';
 import { BookOpen, Clock, RotateCcw, AlertCircle, CheckCircle, Calendar, Hourglass } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
+
 
 export const ReaderReturnRequest: React.FC = () => {
   const [activeLoans, setActiveLoans] = useState<CurrentlyBorrowedBook[]>([]);
@@ -36,7 +38,6 @@ export const ReaderReturnRequest: React.FC = () => {
   };
 
   const handleReturnRequest = async (book: CurrentlyBorrowedBook) => {
-    if (!window.confirm(`Request to return "${book.title}"?`)) return;
 
     setProcessingId(book.borrow_detail_id);
     setError('');
@@ -47,18 +48,21 @@ export const ReaderReturnRequest: React.FC = () => {
       await api.requestBookReturn({
         borrow_detail_id: book.borrow_detail_id
       });
-
-      setSuccessMsg(`Return requested for "${book.title}". Please bring the book to the library.`);
-
       // Refresh the list to reflect the new status (e.g., PendingReturn)
       await fetchActiveLoans();
 
     } catch (err: any) {
-      setError(err.message || "Failed to submit return request");
+      // Error notification
+      Swal.fire({
+        icon: 'error',
+        title: 'Request Failed',
+        text: err.message || "Failed to submit return request"
+      });
     } finally {
       setProcessingId(null);
     }
   };
+
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', {

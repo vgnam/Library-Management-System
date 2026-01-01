@@ -4,6 +4,8 @@ import { BorrowHistoryRecord, HistoryBookInfo } from '../types';
 import { Button } from '../components/Button';
 import { BookOpen, Calendar, Clock, AlertCircle, CheckCircle, RotateCcw, ChevronLeft, ChevronRight, AlertTriangle, Hourglass } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
+
 
 const FILTER_TABS = [
   { label: 'All', value: 'All' },
@@ -25,7 +27,7 @@ export const BorrowHistory: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   
   const navigate = useNavigate();
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 12;
 
   useEffect(() => {
     console.log('Fetching history for filter:', activeFilter, 'page:', currentPage);
@@ -84,6 +86,34 @@ export const BorrowHistory: React.FC = () => {
     }
   };
 
+  const handleCancelRequest = async (borrowSlipId: string, bookTitle: string) => {
+    setLoading(true);
+  
+    try {
+      await api.cancelBorrowRequest(borrowSlipId);
+  
+      setHistory(prev => prev.filter(item => item.borrow_slip_id !== borrowSlipId));
+
+      await fetchHistory();
+  
+      Swal.fire({
+        title: "Cancelled!",
+        text: `You cancelled the request for "${bookTitle}".`,
+        timer: 1200,
+        showConfirmButton: false,
+      });
+  
+    } catch (err: any) {
+      Swal.fire({
+        icon: "error",
+        title: "Failed",
+        text: err.message || "Failed to cancel request."
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleTabChange = (status: string) => {
     console.log('Changing tab to:', status);
     setActiveFilter(status);
@@ -107,8 +137,11 @@ export const BorrowHistory: React.FC = () => {
   };
 
   const getStatusBadge = (book: HistoryBookInfo, slipStatus: string) => {
-    // If slip is rejected, everything is rejected
-    if (slipStatus.toLowerCase() === 'rejected') {
+    const status = book.status || slipStatus;
+    const statusLower = status.toLowerCase();
+    
+    // Rejected - Red
+    if (statusLower === 'rejected') {
       return (
         <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1 rounded-full text-xs font-semibold">
           <AlertCircle className="h-3.5 w-3.5" /> Rejected
@@ -116,8 +149,8 @@ export const BorrowHistory: React.FC = () => {
       );
     }
 
-    // If slip is pending, everything is pending
-    if (slipStatus.toLowerCase() === 'pending') {
+    // Pending approval - Blue
+    if (statusLower === 'pending') {
       return (
         <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs font-semibold">
           <Hourglass className="h-3.5 w-3.5" /> Pending
@@ -125,8 +158,24 @@ export const BorrowHistory: React.FC = () => {
       );
     }
 
-    // If actual return date exists or status is explicitly Returned
-    if (book.actual_return_date || book.is_returned || book.status === 'Returned') {
+    // Pending Return - Show in RED if overdue, YELLOW if on time
+    if (statusLower === 'pending return' || statusLower === 'pendingreturn') {
+      const isOverdue = book.is_overdue || statusLower.includes('overdue');
+      return (
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+          isOverdue 
+            ? 'bg-red-100 text-red-700' 
+            : 'bg-yellow-50 text-yellow-700'
+        }`}>
+          <Clock className="h-3.5 w-3.5" /> 
+          Pending Return
+          {isOverdue && <span className="ml-1 text-[10px]">(Overdue)</span>}
+        </span>
+      );
+    }
+
+    // Returned - Gray
+    if (book.actual_return_date || book.is_returned || statusLower === 'returned') {
       return (
         <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold">
           <CheckCircle className="h-3.5 w-3.5" /> Returned
@@ -134,8 +183,17 @@ export const BorrowHistory: React.FC = () => {
       );
     }
 
-    // If not returned and overdue (calculated by backend)
-    if (book.is_overdue || book.status === 'Overdue') {
+    // Lost - Dark Red
+    if (statusLower === 'lost') {
+      return (
+        <span className="inline-flex items-center gap-1.5 bg-red-900 text-white px-3 py-1 rounded-full text-xs font-semibold">
+          <AlertCircle className="h-3.5 w-3.5" /> Lost
+        </span>
+      );
+    }
+
+    // Overdue - Red
+    if (book.is_overdue || statusLower === 'overdue') {
       return (
         <span className="inline-flex items-center gap-1.5 bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-semibold">
           <AlertTriangle className="h-3.5 w-3.5" /> Overdue
@@ -143,10 +201,19 @@ export const BorrowHistory: React.FC = () => {
       );
     }
 
-    // Otherwise it's active/borrowed
+    // Active/Borrowed - Green
+    if (statusLower === 'active' || statusLower === 'borrowed') {
+      return (
+        <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
+          <BookOpen className="h-3.5 w-3.5" /> Borrowed
+        </span>
+      );
+    }
+
+    // Default fallback - show the actual status
     return (
-      <span className="inline-flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
-        <BookOpen className="h-3.5 w-3.5" /> Borrowed
+      <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold">
+        {status}
       </span>
     );
   };
@@ -225,6 +292,7 @@ export const BorrowHistory: React.FC = () => {
                      Returned On
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Penalty</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -283,12 +351,22 @@ export const BorrowHistory: React.FC = () => {
                          </div>
                       </td>
 
+
                       <td className="px-6 py-4 whitespace-nowrap">
-                         {book.actual_return_date ? (
+                      {book.actual_return_date ? (
                            <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
                               <CheckCircle className="h-4 w-4 text-green-500" />
                               {formatDate(book.actual_return_date)}
                            </div>
+                         ) : (book.status?.toLowerCase() === 'pending' || record.status?.toLowerCase() === 'pending') ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCancelRequest(record.borrow_slip_id, book.title)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-300"
+                          >
+                            Cancel Request
+                          </Button>
                          ) : (
                            <span className="text-gray-400 text-sm pl-6">-</span>
                          )}
@@ -296,6 +374,71 @@ export const BorrowHistory: React.FC = () => {
 
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(book, record.status)}
+                      </td>
+
+                      <td className="px-6 py-4">
+                        {record.penalty ? (
+                          <div className="space-y-1.5 max-w-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                record.penalty.status === 'Paid' 
+                                  ? 'bg-green-100 text-green-700' 
+                                  : record.penalty.status === 'Cancelled'
+                                  ? 'bg-gray-100 text-gray-600'
+                                  : 'bg-red-100 text-red-700'
+                              }`}>
+                                <AlertCircle className="h-3 w-3" />
+                                {record.penalty.penalty_type}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {record.penalty.real_time_calculated && record.penalty.status === 'Pending' && (
+                                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" title="Live updating"></span>
+                                )}
+                                <span className={`text-xs font-bold ${
+                                  record.penalty.status === 'Paid' 
+                                    ? 'text-green-700' 
+                                    : record.penalty.status === 'Cancelled'
+                                    ? 'text-gray-600'
+                                    : 'text-red-700'
+                                }`}>
+                                  {record.penalty.fine_amount.toLocaleString('vi-VN')} VND
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-xs text-gray-600 line-clamp-2" title={record.penalty.description}>
+                              {record.penalty.description}
+                              {record.penalty.real_time_calculated && record.penalty.status === 'Pending' && (
+                                <span className="ml-1 text-orange-600 font-medium">(Updates daily)</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {/* Only show status badge if not returned or if paid/cancelled */}
+                              {(record.status !== 'Returned' || record.penalty.status !== 'Pending') && (
+                                <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${
+                                  record.penalty.status === 'Paid' 
+                                    ? 'bg-green-50 text-green-700 border border-green-200' 
+                                    : record.penalty.status === 'Cancelled'
+                                    ? 'bg-gray-50 text-gray-600 border border-gray-200'
+                                    : 'bg-red-50 text-red-700 border border-red-200'
+                                }`}>
+                                  {record.penalty.status === 'Paid' && <CheckCircle className="h-2.5 w-2.5" />}
+                                  {record.penalty.status === 'Cancelled' && <AlertCircle className="h-2.5 w-2.5" />}
+                                  {record.penalty.status === 'Pending' && <Clock className="h-2.5 w-2.5" />}
+                                  {record.penalty.status}
+                                </div>
+                              )}
+                              {/* Show days late info only for non-returned or if status is Paid/Cancelled */}
+                              {record.penalty.days_overdue && record.penalty.days_overdue > 0 && 
+                               (record.status !== 'Returned' || record.penalty.status !== 'Pending') && (
+                                <span className="text-[10px] text-red-600 font-medium">
+                                  {record.penalty.days_overdue} day{record.penalty.days_overdue > 1 ? 's' : ''} late
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">No penalty</span>
+                        )}
                       </td>
                     </tr>
                   );

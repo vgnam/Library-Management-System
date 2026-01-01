@@ -3,6 +3,7 @@ from typing import Optional
 from rapidfuzz import fuzz
 
 from app.models.model_book_title import BookTitle
+from app.models.model_book import Book
 
 
 class BookSearchService:
@@ -62,18 +63,36 @@ class BookSearchService:
         # =============================
         # 2. Return response
         # =============================
+        books_list = []
+        for b in books:
+            # Count total books for this book title
+            total_books = db.session.query(Book).filter(
+                Book.book_title_id == b.book_title_id
+            ).count()
+            
+            # Count borrowed books (being_borrowed = True)
+            borrowed_books = db.session.query(Book).filter(
+                Book.book_title_id == b.book_title_id,
+                Book.being_borrowed == True
+            ).count()
+            
+            # Available books = total - borrowed
+            available_books = total_books - borrowed_books
+            
+            books_list.append({
+                "id": b.book_title_id,
+                "name": b.name,
+                "author": b.author,
+                "publisher": b.publisher.name if b.publisher else None,
+                "category": b.category,
+                "total_books": total_books,
+                "borrowed_books": borrowed_books,
+                "available_books": available_books
+            })
+        
         return {
             "total": total,
             "page": page,
             "page_size": page_size,
-            "books": [
-                {
-                    "id": b.book_title_id,
-                    "name": b.name,
-                    "author": b.author,
-                    "publisher": b.publisher.name if b.publisher else None,
-                    "category": b.category
-                }
-                for b in books
-            ]
+            "books": books_list
         }

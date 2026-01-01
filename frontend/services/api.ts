@@ -1,6 +1,18 @@
 import { API_BASE_URL } from '../constants';
 import { LoginResponse, SearchResponse, UserRole, BorrowRequest, BorrowStatus, HistoryResponse, CurrentBorrowedResponse, OverdueResponse, RequestReturnBookRequest, ProcessDamageBookRequest, ProcessLostBookRequest, ReaderStatusResponse, ReturnRequest } from '../types';
 
+export interface BookWithAvailability {
+  book_title_id: string;
+  name: string;
+  author: string;
+  publisher: string;
+  category: string;
+  available_count: number;
+  total_count: number;
+  has_pending_request: boolean;
+  is_available: boolean;
+}
+
 class ApiService {
   private token: string | null = localStorage.getItem('token');
 
@@ -47,7 +59,12 @@ class ApiService {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    // 2. Merge headers from options
+    // 2. Add Content-Type for JSON requests
+    if (options.body && typeof options.body === 'string') {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    // 3. Merge headers from options
     if (options.headers) {
       if (options.headers instanceof Headers) {
         options.headers.forEach((v, k) => {
@@ -235,6 +252,12 @@ class ApiService {
     });
   }
 
+  async cancelBorrowRequest(borrowSlipId: string): Promise<any> {
+    return this.request(`/books/borrow-request/${borrowSlipId}/cancel`, {
+      method: 'DELETE',
+    });
+  }
+
   // --- Return Service (Updated to match backend) ---
 
   async getReturnRequests(): Promise<ReturnRequest[]> {
@@ -337,6 +360,11 @@ class ApiService {
     return res;
   }
 
+  async getBooks(): Promise<{ data: BookWithAvailability[] }> {
+    const response = await this.request<any>('/books');
+    return response.data;
+  }
+  
   async getCurrentlyBorrowed(): Promise<CurrentBorrowedResponse> {
     const res = await this.request<any>('/history/current');
     return res.data || res;
@@ -345,6 +373,44 @@ class ApiService {
   async getOverdueBooks(): Promise<OverdueResponse> {
     const res = await this.request<any>('/history/overdue');
     return res.data || res;
+  }
+
+  // --- Acquisition ---
+  async getPublishers(): Promise<any> {
+    return this.request<any>('/acquisition/publishers');
+  }
+
+  async createBookTitle(data: {
+    name: string;
+    author: string;
+    category: string;
+    publisher_id: string;
+  }): Promise<any> {
+    return this.request<any>('/acquisition/book-title/create', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async createAcquisitionSlip(data: {
+    books: Array<{
+      book_title_id: string;
+      quantity: number;
+      price: number;
+    }>;
+  }): Promise<any> {
+    return this.request<any>('/acquisition/create', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async getAcquisitionHistory(page: number = 1, pageSize: number = 10): Promise<any> {
+    return this.request<any>(`/acquisition/history?page=${page}&page_size=${pageSize}`);
+  }
+
+  async getAcquisitionDetail(acqId: string): Promise<any> {
+    return this.request<any>(`/acquisition/detail/${acqId}`);
   }
 }
 

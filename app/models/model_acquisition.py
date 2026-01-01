@@ -25,3 +25,4 @@ class AcquisitionSlipDetail(Base):
 
     acquisition_slip = relationship("AcquisitionSlip", back_populates="details")
     book_title = relationship("BookTitle", back_populates="acquisition_details")
+    book_title = relationship("BookTitle", back_populates="acquisition_details")

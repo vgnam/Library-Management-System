@@ -56,22 +56,39 @@ export const ReturnBook: React.FC = () => {
     setError('');
 
     try {
+      let result;
       if (actionType === 'return') {
         // Librarian processes return (good condition default)
-        await api.processReturn(selectedBook.borrow_detail_id);
-        setSuccessMsg(`Book "${selectedBook.title}" returned successfully.`);
+        result = await api.processReturn(selectedBook.borrow_detail_id);
+        
+        // Check for card unsuspension
+        if (result?.data?.card_unsuspended) {
+          setSuccessMsg(`Book "${selectedBook.title}" returned successfully. ✅ Card status restored to Active!`);
+        } else {
+          setSuccessMsg(`Book "${selectedBook.title}" returned successfully.`);
+        }
       } else if (actionType === 'damage') {
-        await api.reportDamage({
+        result = await api.reportDamage({
           borrow_detail_id: selectedBook.borrow_detail_id,
           damage_description: damageDesc,
           fine_amount: fineAmount ? parseFloat(fineAmount) : undefined
         });
-        setSuccessMsg(`Damage reported for "${selectedBook.title}". Fine applied.`);
+        
+        if (result?.data?.card_unsuspended) {
+          setSuccessMsg(`Damage reported for "${selectedBook.title}". Fine applied. ✅ Card status restored to Active!`);
+        } else {
+          setSuccessMsg(`Damage reported for "${selectedBook.title}". Fine applied.`);
+        }
       } else if (actionType === 'lost') {
-        await api.reportLost({
+        result = await api.reportLost({
           borrow_detail_id: selectedBook.borrow_detail_id
         });
-        setSuccessMsg(`Book "${selectedBook.title}" reported lost. Compensation required.`);
+        
+        if (result?.data?.card_unsuspended) {
+          setSuccessMsg(`Book "${selectedBook.title}" reported lost. Compensation required. ✅ Card status restored to Active!`);
+        } else {
+          setSuccessMsg(`Book "${selectedBook.title}" reported lost. Compensation required.`);
+        }
       }
 
       // Close modal and refresh data to show updated list
@@ -154,10 +171,40 @@ export const ReturnBook: React.FC = () => {
               </div>
               <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                 <span className="text-gray-600">Account Status</span>
-                <span className={`font-bold px-2 py-0.5 rounded-full text-xs ${readerData.card_status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                <span className={`font-bold px-2 py-0.5 rounded-full text-xs ${
+                  readerData.card_status === 'Active' ? 'bg-green-100 text-green-700' : 
+                  readerData.card_status === 'Suspended' ? 'bg-yellow-100 text-yellow-700' :
+                  readerData.card_status === 'Blocked' ? 'bg-red-100 text-red-700' :
+                  'bg-gray-100 text-gray-700'
+                }`}>
                   {readerData.card_status}
                 </span>
               </div>
+              
+              {/* Suspension Warning */}
+              {readerData.card_status === 'Suspended' && (
+                <div className="p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg">
+                  <p className="text-xs font-bold text-yellow-800 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    Suspended - Overdue Books
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    Process all overdue returns to restore active status
+                  </p>
+                </div>
+              )}
+              
+              {/* Infraction Count Display */}
+              {readerData.infraction_count !== undefined && readerData.infraction_count > 0 && (
+                <div className="p-3 bg-orange-50 border-l-4 border-orange-400 rounded-r-lg">
+                  <p className="text-xs font-bold text-orange-800">
+                    ⚠️ Infractions: {readerData.infraction_count}/3
+                  </p>
+                  <p className="text-xs text-orange-700 mt-1">
+                    {3 - readerData.infraction_count} more infraction(s) until permanent block
+                  </p>
+                </div>
+              )}
 
               <div className="pt-2 border-t border-gray-100 mt-2">
                 <div className="flex justify-between mb-1">

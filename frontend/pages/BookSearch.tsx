@@ -47,7 +47,7 @@ export const BookSearch: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 12;
   
   const [books, setBooks] = useState<BookSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -55,13 +55,45 @@ export const BookSearch: React.FC = () => {
   const [selectedBooks, setSelectedBooks] = useState<string[]>([]);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [warningMsg, setWarningMsg] = useState('');
+  const [readerStats, setReaderStats] = useState<{
+    card_type: string;
+    max_books: number;
+    current_active_books: number;
+    remaining_slots: number;
+    has_overdue: boolean;
+  } | null>(null);
   
   const navigate = useNavigate();
 
   // Initial load
   useEffect(() => {
     executeSearch(1);
+    fetchReaderStats();
   }, []);
+
+  const fetchReaderStats = async () => {
+    try {
+      const res = await api.getCurrentlyBorrowed();
+      if (res) {
+        // Use values directly from backend
+        setReaderStats({
+          card_type: res.card_type || 'Standard',
+          max_books: res.max_books || 5,
+          current_active_books: res.total_borrowed || 0,
+          remaining_slots: res.remaining_slots || 0,
+          has_overdue: res.has_overdue || false
+        });
+
+        console.log('Reader Stats Set:', {
+          has_overdue: res.has_overdue === true,
+          remaining_slots: res.remaining_slots || 0
+        }); 
+      }
+    } catch (err) {
+      console.error('Failed to fetch reader stats', err);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setKeyword(e.target.value);
@@ -122,28 +154,80 @@ export const BookSearch: React.FC = () => {
 
   const toggleBookSelection = (bookId: string) => {
     if (!bookId) return;
-    setSelectedBooks(prev => 
-      prev.includes(bookId) 
-        ? prev.filter(id => id !== bookId) 
-        : [...prev, bookId]
-    );
+    
+    console.log('🔍 Toggle Book - readerStats:', readerStats); // ✅ THÊM
+    setSelectedBooks(prev => {
+      if (prev.includes(bookId)) {
+        // Deselecting - always allowed
+        setWarningMsg('');
+        return prev.filter(id => id !== bookId);
+      } else {
+        // Selecting - check limits
+        if (readerStats) {
+          console.log('📌 has_overdue value:', readerStats.has_overdue); // ✅ THÊM
+          console.log('📌 has_overdue type:', typeof readerStats.has_overdue); // ✅ THÊM
+        
+          if (readerStats.has_overdue) {
+            console.log('🚫 BLOCKED: User has overdue books!'); // ✅ THÊM
+            setErrorMsg(
+              'Cannot borrow books. You have overdue books. Please return them first.'
+            );
+            setTimeout(() => setErrorMsg(''), 5000);
+            return prev;
+          }
+
+          // Number of books being selected in this request
+          const booksToSelect = prev.length + 1;
+          
+          // Check: selected books must be <= remaining slots
+          if (booksToSelect > readerStats.remaining_slots) {
+            setWarningMsg(
+              `Cannot select more books. You have ${readerStats.current_active_books} active books and can only borrow ${readerStats.remaining_slots} more (${booksToSelect} selected). Your ${readerStats.card_type} card limit is ${readerStats.max_books} books.`
+            );
+            setTimeout(() => setWarningMsg(''), 5000);
+            return prev;
+          }
+        }
+        setWarningMsg('');
+        return [...prev, bookId];
+      }
+    });
   };
   
   const handleCreateRequest = async () => {
     if (selectedBooks.length === 0) return;
+    
+    // Double-check limit before submitting
+    if (readerStats && selectedBooks.length > readerStats.remaining_slots) {
+      setErrorMsg(
+        `Cannot create request. You can only borrow ${readerStats.remaining_slots} more books (you have ${readerStats.current_active_books} active, max ${readerStats.max_books}).`
+      );
+      setTimeout(() => setErrorMsg(''), 5000);
+      return;
+    }
+    
     try {
       setLoading(true);
       await api.createBorrowRequest(selectedBooks);
       setSuccessMsg('Borrow request created successfully!');
       setSelectedBooks([]);
+      // Refresh reader stats after successful request
+      await fetchReaderStats();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err: any) {
       if (err.message && err.message.includes('Session expired')) {
          navigate('/login');
       }
       const msg = err instanceof Error ? err.message : String(err);
-      setErrorMsg(msg || 'Failed to create request');
-      setTimeout(() => setErrorMsg(''), 5000);
+      
+      // Check if error is about suspension or overdue books
+      if (msg.includes('suspended') || msg.includes('overdue')) {
+        setWarningMsg(msg);
+        setTimeout(() => setWarningMsg(''), 8000);
+      } else {
+        setErrorMsg(msg || 'Failed to create request');
+        setTimeout(() => setErrorMsg(''), 5000);
+      }
     } finally {
       setLoading(false);
     }
@@ -194,10 +278,62 @@ export const BookSearch: React.FC = () => {
         </div>
       )}
 
+      {warningMsg && (
+        <div className="bg-yellow-50 text-yellow-800 p-4 rounded-md border border-yellow-200 flex items-center gap-2 animate-fade-in-up">
+          <AlertCircle className="h-5 w-5 flex-shrink-0" />
+          <span className="break-words">{warningMsg}</span>
+        </div>
+      )}
+
       {successMsg && (
         <div className="bg-green-50 text-green-700 p-4 rounded-md border border-green-200 flex items-center gap-2 animate-fade-in-up">
           <Check className="h-5 w-5 flex-shrink-0" />
           <span>{successMsg}</span>
+        </div>
+      )}
+
+      {/* Reader Stats Info */}
+      {readerStats && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-5 rounded-lg shadow-sm">
+          {/* OVERDUE WARNING BANNER */}
+          {readerStats.has_overdue && (
+            <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-red-800">⚠️ Account Alert: Overdue Books Detected</p>
+                  <p className="text-xs text-red-700 mt-1">
+                    You have overdue books. Your account may be suspended. Please return overdue books immediately to avoid penalties.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Account Type:</span>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold ${readerStats.card_type === 'VIP' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>
+                  {readerStats.card_type}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-gray-500" />
+                <span className="text-sm text-gray-600">
+                  Currently borrowed: <span className="font-bold text-gray-900">{readerStats.current_active_books}</span> / <span className="font-bold text-gray-900">{readerStats.max_books}</span> books
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-blue-300 shadow-sm">
+              <Layers className="h-4 w-4 text-blue-600" />
+              <span className="text-sm text-gray-700">You can borrow: </span>
+              <span className={`text-lg font-bold ${readerStats.remaining_slots > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {readerStats.remaining_slots}
+              </span>
+              <span className="text-sm text-gray-600">more book{readerStats.remaining_slots !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -209,14 +345,14 @@ export const BookSearch: React.FC = () => {
             <span>{selectedBooks.length} book(s) selected</span>
           </div>
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setSelectedBooks([])}>Clear</Button>
+            <Button variant="ghost" size="sm" onClick={() => { setSelectedBooks([]); setWarningMsg(''); }}>Clear</Button>
             <Button onClick={handleCreateRequest} isLoading={loading}>Create Borrow Request</Button>
           </div>
         </div>
       )}
 
-      {/* Grid of Books */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Grid of Books - 12 books per page displayed in 4 columns on large screens */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {books.length === 0 && !loading && (
            <div className="col-span-full text-center py-12 text-gray-500 bg-white rounded-lg border border-gray-200 border-dashed">
              <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-2" />
@@ -227,7 +363,7 @@ export const BookSearch: React.FC = () => {
         {books.map((book) => {
           const bookId = getBookId(book);
           const isSelected = selectedBooks.includes(bookId);
-          const isOutOfStock = typeof book.available_copies === 'number' && book.available_copies === 0;
+          const isOutOfStock = typeof book.available_books === 'number' && book.available_books === 0;
 
           return (
             <div key={bookId} className={`bg-white p-6 rounded-lg border transition-all duration-200 hover:shadow-lg flex flex-col h-full ${isSelected ? 'border-primary ring-1 ring-primary' : 'border-gray-200'} ${isOutOfStock ? 'opacity-75' : ''}`}>
@@ -252,11 +388,11 @@ export const BookSearch: React.FC = () => {
                     Publisher: {book.publisher}
                   </p>
 
-                  {typeof book.available_copies === 'number' && (
+                  {typeof book.available_books === 'number' && (
                     <div className="flex items-center gap-1.5 mt-1">
                       <Layers className="h-3.5 w-3.5 text-gray-400" />
-                      <span className={`text-xs font-bold ${book.available_copies > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {book.available_copies > 0 ? `${book.available_copies} copies left` : 'Out of Stock'}
+                      <span className={`text-xs font-bold ${book.available_books > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {book.available_books > 0 ? `${book.available_books} left` : 'Out of Stock'}
                       </span>
                     </div>
                   )}

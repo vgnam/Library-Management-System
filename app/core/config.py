@@ -8,10 +8,17 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Library Management System"
     API_PREFIX: str = "/api/v1"
 
-
+    # ⚙️ Database Configuration
+    SERVER_NAME: str = "localhost"  
+    DATABASE_NAME: str = "library_db"
+    USERNAME: str = "sa"
+    PASSWORD: str = "chinchin123@"
+    
     DATABASE_URL: str = os.getenv(
-        "DATABASE_URL", 
-        "mssql+pyodbc://DESKTOP-7SLU2A5/library_db?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
+        "DATABASE_URL",
+        f"mssql+pyodbc://{USERNAME}:{PASSWORD}@{SERVER_NAME}:1433/{DATABASE_NAME}"
+        f"?driver=ODBC+Driver+17+for+SQL+Server"
+        f"&TrustServerCertificate=yes"
     )
 
     SECRET_KEY: str = os.getenv("SECRET_KEY", "supersecretkey")

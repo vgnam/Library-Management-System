@@ -10,7 +10,7 @@ from fastapi_sqlalchemy import db
 from fastapi import HTTPException
 import sqlalchemy as sa
 
-from app.models.model_borrow import BorrowSlip, BorrowSlipDetail
+from app.models.model_borrow import BorrowSlip, BorrowSlipDetail, BorrowStatusEnum
 from app.models.model_book import Book
 from app.models.model_reader import Reader
 from app.models.model_penalty import PenaltySlip, PenaltyStatusEnum
@@ -18,113 +18,7 @@ from app.models.model_penalty import PenaltySlip, PenaltyStatusEnum
 
 class HistoryService:
 
-    # @staticmethod
-    # def get_borrow_history(
-    #         reader_id: str,
-    #         status: str = None,
-    #         page: int = 1,
-    #         page_size: int = 10
-    # ) -> dict:
-    #     """Get borrow history with pagination — using BorrowSlipDetail.status"""
-    #     reader = db.session.query(Reader).filter(Reader.reader_id == reader_id).first()
-    #     if not reader:
-    #         raise HTTPException(status_code=404, detail="Reader not found")
-    #
-    #     # Query using BorrowSlipDetail.status (NOT BorrowSlip.status)
-    #     query = db.session.query(
-    #         BorrowSlip.bs_id,
-    #         BorrowSlip.borrow_date,
-    #         BorrowSlip.return_date,  # still kept for backward compatibility (slip-level)
-    #         BorrowSlipDetail.id,
-    #         BorrowSlipDetail.book_id,
-    #         BorrowSlipDetail.return_date.label('detail_due_date'),
-    #         sa.cast(BorrowSlipDetail.status, sa.String).label('detail_status_str')  # ← FROM DETAIL
-    #     ).select_from(BorrowSlip).join(
-    #         BorrowSlipDetail, BorrowSlip.bs_id == BorrowSlipDetail.borrow_slip_id
-    #     ).filter(BorrowSlip.reader_id == reader_id)
-    #
-    #     # Filter by BorrowSlipDetail.status if provided
-    #     if status:
-    #         query = query.filter(sa.cast(BorrowSlipDetail.status, sa.String) == status)
-    #
-    #     total = query.count()
-    #     raw_results = query.order_by(BorrowSlip.borrow_date.desc()).offset((page - 1) * page_size).limit(
-    #         page_size).all()
-    #
-    #     # Load books
-    #     book_ids = [result.book_id for result in raw_results]
-    #     books = db.session.query(Book).filter(Book.book_id.in_(book_ids)).all()
-    #     book_dict = {b.book_id: b for b in books}
-    #
-    #     history = []
-    #     for result in raw_results:
-    #         book = book_dict.get(result.book_id)
-    #         detail_status = str(result.detail_status_str).lower()
-    #
-    #         # Determine display status and overdue info based on DETAIL status
-    #         is_overdue = False
-    #         days_overdue = 0
-    #         display_status = str(result.detail_status_str).capitalize()
-    #
-    #         if detail_status == "pending":
-    #             display_status = "Pending"  # borrowing request
-    #         elif detail_status == "active":
-    #             # Check if overdue (not returned and past due)
-    #             if result.detail_due_date and datetime.utcnow() > result.detail_due_date:
-    #                 display_status = "Overdue"
-    #                 is_overdue = True
-    #                 days_overdue = (datetime.utcnow().date() - result.detail_due_date.date()).days
-    #             else:
-    #                 display_status = "Active"
-    #         elif detail_status == "pendingreturn":
-    #             display_status = "Pending Return"
-    #         elif detail_status == "returned":
-    #             # Check if returned late
-    #             if result.detail_due_date and result.return_date and result.return_date > result.detail_due_date:
-    #                 display_status = "Overdue"
-    #                 is_overdue = True
-    #                 days_overdue = (result.return_date.date() - result.detail_due_date.date()).days
-    #             else:
-    #                 display_status = "Returned"
-    #         elif detail_status == "lost":
-    #             display_status = "Lost"
-    #         elif detail_status == "rejected":
-    #             display_status = "Rejected"
-    #         elif detail_status == "overdue":
-    #             # If status is explicitly "overdue", mark as such
-    #             display_status = "Overdue"
-    #             is_overdue = True
-    #             if result.detail_due_date:
-    #                 days_overdue = (datetime.utcnow().date() - result.detail_due_date.date()).days
-    #
-    #         history.append({
-    #             "borrow_slip_id": result.bs_id,
-    #             "borrow_detail_id": result.id,
-    #             "borrow_date": result.borrow_date.isoformat(),
-    #             "due_date": result.detail_due_date.isoformat() if result.detail_due_date else None,
-    #             "actual_return_date": result.return_date.isoformat() if result.return_date else None,
-    #             "status": display_status,  # ← from detail, not slip
-    #             "book": {
-    #                 "book_id": result.book_id,
-    #                 "title": book.book_title.name if book and book.book_title else "Unknown",
-    #                 "author": book.book_title.author if book and book.book_title else None,
-    #                 "due_date": result.detail_due_date.isoformat() if result.detail_due_date else None,
-    #                 "actual_return_date": result.return_date.isoformat() if result.return_date else None,
-    #                 "is_returned": detail_status == "returned",
-    #                 "is_overdue": is_overdue,
-    #                 "days_overdue": days_overdue,
-    #                 "status": display_status  # ← consistent
-    #             }
-    #         })
-    #
-    #     return {
-    #         "total": total,
-    #         "page": page,
-    #         "page_size": page_size,
-    #         "total_pages": (total + page_size - 1) // page_size,
-    #         "history": history
-    #     }
-
+    
     @staticmethod
     def get_borrow_history(
             reader_id: str,
@@ -350,13 +244,18 @@ class HistoryService:
 
     @staticmethod
     def get_currently_borrowed_books(reader_id: str) -> dict:
-        """Get books currently being borrowed (status = Active, Overdue, or PendingReturn)"""
+        """Get books currently being borrowed (status = Active, Overdue, or PendingReturn)
+        
+        AUTO-UPDATE LOGIC:
+        1. Updates BorrowSlipDetail.status from Active -> Overdue if past due date
+        2. Auto-suspends reading card if any overdue books exist
+        """
         reader = db.session.query(Reader).filter(Reader.reader_id == reader_id).first()
         if not reader:
             raise HTTPException(status_code=404, detail="Reader not found")
 
         # Get card type from reading card
-        from app.models.model_reading_card import ReadingCard
+        from app.models.model_reading_card import ReadingCard, CardStatusEnum
         reading_card = db.session.query(ReadingCard).filter(
             ReadingCard.reader_id == reader_id
         ).first()
@@ -365,6 +264,29 @@ class HistoryService:
         max_books = 8 if card_type == "VIP" else 5
 
         now = datetime.utcnow()
+        
+        # ========================================
+        # AUTO-UPDATE: Mark overdue books
+        # ========================================
+        # Find all Active books that are past due date
+        overdue_details = db.session.query(BorrowSlipDetail).join(
+            BorrowSlip, BorrowSlipDetail.borrow_slip_id == BorrowSlip.bs_id
+        ).filter(
+            BorrowSlip.reader_id == reader_id,
+            BorrowSlipDetail.status == BorrowStatusEnum.active,
+            BorrowSlipDetail.return_date < now
+        ).all()
+        
+        # Update them to Overdue status
+        for detail in overdue_details:
+            detail.status = BorrowStatusEnum.overdue
+        
+        if overdue_details:
+            db.session.commit()
+        
+        # ========================================
+        # Get current borrowed books (including newly marked overdue)
+        # ========================================
         raw_results = db.session.query(
             BorrowSlipDetail.id,
             BorrowSlipDetail.borrow_slip_id,
@@ -383,7 +305,48 @@ class HistoryService:
         book_ids = [result.book_id for result in raw_results]
         books = db.session.query(Book).filter(Book.book_id.in_(book_ids)).all()
         book_dict = {b.book_id: b for b in books}
-        has_overdue = any(result.detail_status_str == 'overdue' for result in raw_results)
+        has_overdue = any(result.detail_status_str.lower() == 'overdue' for result in raw_results)
+        
+        # ========================================
+        # AUTO-BLOCK: Check for severe violations
+        # ========================================
+        should_block = False
+        block_reason = None
+        
+        # Check Rule 1: Any book overdue ≥30 days -> Immediate block
+        for result in raw_results:
+            if result.detail_due_date and now > result.detail_due_date:
+                days_overdue = (now.date() - result.detail_due_date.date()).days
+                if days_overdue >= 30:
+                    should_block = True
+                    block_reason = f"Book overdue for {days_overdue} days (≥30 days)"
+                    break
+        
+        # Check Rule 2: 3+ infractions -> Block
+        if not should_block and reader.infraction_count >= 3:
+            should_block = True
+            block_reason = f"Accumulated {reader.infraction_count} infractions"
+        
+        # Apply block if needed
+        if should_block and reading_card and reading_card.status != CardStatusEnum.blocked:
+            reading_card.status = CardStatusEnum.blocked
+            db.session.commit()
+        
+        # ========================================
+        # AUTO-SUSPEND/UNSUSPEND CARD (only if not blocked)
+        # ========================================
+        if reading_card and reading_card.status != CardStatusEnum.blocked:
+            if has_overdue:
+                # Has overdue books -> Suspend if not already suspended
+                if reading_card.status != CardStatusEnum.suspended:
+                    reading_card.status = CardStatusEnum.suspended
+                    db.session.commit()
+            else:
+                # No overdue books -> Unsuspend if currently suspended
+                if reading_card.status == CardStatusEnum.suspended:
+                    reading_card.status = CardStatusEnum.active
+                    db.session.commit()
+        
         currently_borrowed_books = []
         for result in raw_results:
             book = book_dict.get(result.book_id)
@@ -418,11 +381,15 @@ class HistoryService:
 
         total_borrowed = len(currently_borrowed_books)
         remaining_slots = max_books - total_borrowed
+        
+        # Get card status
+        card_status = reading_card.status.value if reading_card and reading_card.status else "Active"
 
         return {
             "total_borrowed": total_borrowed,
             "currently_borrowed_books": currently_borrowed_books,
             "card_type": card_type,
+            "card_status": card_status,
             "max_books": max_books,
             "remaining_slots": remaining_slots,
             "has_overdue": has_overdue

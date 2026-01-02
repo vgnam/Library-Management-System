@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../constants';
-import { LoginResponse, SearchResponse, UserRole, BorrowRequest, BorrowStatus, HistoryResponse, CurrentBorrowedResponse, OverdueResponse, RequestReturnBookRequest, ProcessDamageBookRequest, ProcessLostBookRequest, ReaderStatusResponse, ReturnRequest } from '../types';
+import { LoginResponse, SearchResponse, UserRole, BorrowRequest, BorrowStatus, HistoryResponse, CurrentBorrowedResponse, OverdueResponse, RequestReturnBookRequest, ProcessDamageBookRequest, ProcessLostBookRequest, ReaderStatusResponse, ReturnRequest, UserInfo, UserBorrowedBook, RemoveBanResponse, ReadersListResponse } from '../types';
 
 export interface BookWithAvailability {
   book_title_id: string;
@@ -411,6 +411,50 @@ class ApiService {
 
   async getAcquisitionDetail(acqId: string): Promise<any> {
     return this.request<any>(`/acquisition/detail/${acqId}`);
+  }
+
+  // --- Librarian User Management ---
+
+  async getUserInfo(userId: string): Promise<UserInfo> {
+    const res = await this.request<any>(`/librarian/users/${userId}`);
+    return res.data || res;
+  }
+
+  async getUserCurrentBorrows(userId: string): Promise<UserBorrowedBook[]> {
+    const res = await this.request<any>(`/librarian/users/${userId}/current-borrows`);
+    return res.data || res || [];
+  }
+
+  async removeBan(userId: string, reason?: string): Promise<RemoveBanResponse> {
+    let url = `/librarian/users/${userId}/remove-ban`;
+    if (reason) {
+      url += `?reason=${encodeURIComponent(reason)}`;
+    }
+    const res = await this.request<any>(url, {
+      method: 'POST'
+    });
+    return res.data || res;
+  }
+
+  async listReaders(
+    statusFilter?: string,
+    limit: number = 100,
+    offset: number = 0
+  ): Promise<ReadersListResponse> {
+    const params = new URLSearchParams();
+    if (statusFilter) {
+      params.append('status_filter', statusFilter.toLowerCase());
+    }
+    params.append('limit', limit.toString());
+    params.append('offset', offset.toString());
+    
+    const res = await this.request<any>(`/librarian/readers?${params.toString()}`);
+    return res.data || res;
+  }
+
+  async searchUserByUsername(username: string): Promise<UserInfo[]> {
+    const res = await this.request<any>(`/librarian/users/search/${encodeURIComponent(username)}`);
+    return res.data || res || [];
   }
 }
 

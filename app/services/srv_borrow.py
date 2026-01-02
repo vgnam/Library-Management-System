@@ -259,6 +259,13 @@ class BorrowService:
 
                 detail.status = "active"  # ← THÊM DÒNG NÀY
 
+        # Increase reader's total_borrowed count
+        reader = db.session.query(Reader).filter(
+            Reader.reader_id == borrow_slip.reader_id
+        ).first()
+        if reader:
+            reader.total_borrowed += len(details)
+
         db.session.commit()
 
         return {

@@ -260,6 +260,10 @@ class ReturnService:
         except Exception as e:
             print(f"Warning: Failed to create penalty: {e}")
 
+        # Decrease reader's total_borrowed count for this returned book
+        if reader:
+            reader.total_borrowed = max(0, reader.total_borrowed - 1)
+
         # Check if all details are returned and update slip status
         all_details = db.session.query(BorrowSlipDetail).filter(
             BorrowSlipDetail.borrow_slip_id == slip.bs_id

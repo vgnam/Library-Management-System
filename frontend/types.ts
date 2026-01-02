@@ -270,3 +270,91 @@ export interface AcquisitionHistoryResponse {
     data: AcquisitionSlip[];
   };
 }
+
+// --- Librarian User Management Types ---
+
+export interface ReadingCardInfo {
+  card_id: string;
+  card_type: string;
+  fee: number;
+  register_date: string;
+  register_office: string;
+  status: string;
+}
+
+export interface ReaderInfo {
+  reader_id: string;
+  total_borrowed: number;
+  currently_borrowed: number;
+  infraction_count: number;
+  reading_card?: ReadingCardInfo;
+}
+
+export interface UserInfo {
+  user_id: string;
+  username: string;
+  full_name: string;
+  email: string;
+  phone_number?: string;
+  age?: number;
+  dob?: string;
+  address?: string;
+  gender?: string;
+  role: string;
+  reader_info?: ReaderInfo;
+}
+
+export interface UserBorrowedBook {
+  borrow_detail_id: string;
+  book_id: string;
+  isbn: string;
+  title: string;
+  author: string;
+  publisher?: string;
+  borrow_slip_id: string;
+  borrow_date: string;
+  due_date?: string;
+  status: string;
+  is_overdue: boolean;
+  days_overdue: number;
+  penalty?: {
+    penalty_id: string;
+    penalty_type: string;
+    description: string;
+    status: string;
+  };
+}
+
+export interface ReaderListItem {
+  user_id: string;
+  username: string;
+  full_name: string;
+  email: string;
+  phone_number?: string;
+  reader_id: string;
+  total_borrowed: number;
+  currently_borrowed: number;
+  infraction_count: number;
+  card_id: string;
+  card_type: string;
+  card_status: string;
+  register_date: string;
+}
+
+export interface ReadersListResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  readers: ReaderListItem[];
+}
+
+export interface RemoveBanResponse {
+  success: boolean;
+  message: string;
+  user_id: string;
+  username: string;
+  reader_id: string;
+  card_id: string;
+  old_status: string;
+  new_status: string;
+}

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
 import { Button } from '../components/Button';
-import { Search, User, Book, AlertTriangle, CheckCircle, XCircle, DollarSign, FileText } from 'lucide-react';
+import { Search, User, Book, AlertTriangle, CheckCircle, XCircle, DollarSign, FileText, AlertCircle } from 'lucide-react';
 import { ReaderStatusResponse, CurrentlyBorrowedBook } from '../types';
 
 export const ReturnBook: React.FC = () => {
@@ -61,8 +61,12 @@ export const ReturnBook: React.FC = () => {
         // Librarian processes return (good condition default)
         result = await api.processReturn(selectedBook.borrow_detail_id);
         
+        // Check for permanent card block
+        if (result?.data?.card_blocked && result?.data?.unblock_instructions) {
+          setError(`🚫 ${result.data.unblock_instructions}`);
+        }
         // Check for card unsuspension
-        if (result?.data?.card_unsuspended) {
+        else if (result?.data?.card_unsuspended) {
           setSuccessMsg(`Book "${selectedBook.title}" returned successfully. ✅ Card status restored to Active!`);
         } else {
           setSuccessMsg(`Book "${selectedBook.title}" returned successfully.`);
@@ -74,7 +78,11 @@ export const ReturnBook: React.FC = () => {
           fine_amount: fineAmount ? parseFloat(fineAmount) : undefined
         });
         
-        if (result?.data?.card_unsuspended) {
+        // Check for permanent card block
+        if (result?.data?.card_blocked && result?.data?.unblock_instructions) {
+          setError(`🚫 ${result.data.unblock_instructions}`);
+        }
+        else if (result?.data?.card_unsuspended) {
           setSuccessMsg(`Damage reported for "${selectedBook.title}". Fine applied. ✅ Card status restored to Active!`);
         } else {
           setSuccessMsg(`Damage reported for "${selectedBook.title}". Fine applied.`);
@@ -84,7 +92,11 @@ export const ReturnBook: React.FC = () => {
           borrow_detail_id: selectedBook.borrow_detail_id
         });
         
-        if (result?.data?.card_unsuspended) {
+        // Check for permanent card block
+        if (result?.data?.card_blocked && result?.data?.unblock_instructions) {
+          setError(`🚫 ${result.data.unblock_instructions}`);
+        }
+        else if (result?.data?.card_unsuspended) {
           setSuccessMsg(`Book "${selectedBook.title}" reported lost. Compensation required. ✅ Card status restored to Active!`);
         } else {
           setSuccessMsg(`Book "${selectedBook.title}" reported lost. Compensation required.`);
@@ -180,6 +192,22 @@ export const ReturnBook: React.FC = () => {
                   {readerData.card_status}
                 </span>
               </div>
+              
+              {/* Blocked Card Warning */}
+              {readerData.card_status === 'Blocked' && (
+                <div className="p-3 bg-red-50 border-l-4 border-red-600 rounded-r-lg">
+                  <p className="text-xs font-bold text-red-800 flex items-center gap-1">
+                    <XCircle className="h-4 w-4" />
+                    🚫 PERMANENTLY BLOCKED
+                  </p>
+                  <p className="text-xs text-red-700 mt-1">
+                    ⚠️ Reader must pay ALL outstanding fines and contact library management for review.
+                  </p>
+                  <p className="text-xs text-red-600 mt-1 font-semibold">
+                    Will NOT be automatically unblocked.
+                  </p>
+                </div>
+              )}
               
               {/* Suspension Warning */}
               {readerData.card_status === 'Suspended' && (

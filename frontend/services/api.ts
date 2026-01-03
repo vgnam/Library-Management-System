@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../constants';
-import { LoginResponse, SearchResponse, UserRole, BorrowRequest, BorrowStatus, HistoryResponse, CurrentBorrowedResponse, OverdueResponse, RequestReturnBookRequest, ProcessDamageBookRequest, ProcessLostBookRequest, ReaderStatusResponse, ReturnRequest, UserInfo, UserBorrowedBook, RemoveBanResponse, ReadersListResponse } from '../types';
+import { LoginResponse, SearchResponse, UserRole, BorrowRequest, BorrowStatus, HistoryResponse, CurrentBorrowedResponse, OverdueResponse, RequestReturnBookRequest, ProcessDamageBookRequest, ProcessLostBookRequest, ReaderStatusResponse, ReturnRequest, UserInfo, UserBorrowedBook, RemoveBanResponse, ReadersListResponse, UserBorrowHistoryResponse } from '../types';
 
 export interface BookWithAvailability {
   book_title_id: string;
@@ -456,6 +456,24 @@ class ApiService {
     const res = await this.request<any>(`/librarian/users/search/${encodeURIComponent(username)}`);
     return res.data || res || [];
   }
+
+  async getUserBorrowHistory(
+    userId: string,
+    status?: string,
+    page: number = 1,
+    pageSize: number = 20
+  ): Promise<UserBorrowHistoryResponse> {
+    const params = new URLSearchParams();
+    if (status && status !== 'all') {
+      params.append('status', status);
+    }
+    params.append('page', page.toString());
+    params.append('page_size', pageSize.toString());
+    
+    const res = await this.request<any>(`/librarian/users/${userId}/borrow-history?${params.toString()}`);
+    return res.data || res;
+  }
 }
+
 
 export const api = new ApiService();

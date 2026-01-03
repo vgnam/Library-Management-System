@@ -97,6 +97,41 @@ def remove_ban(
     return librarian_service.remove_ban(user_id, reason)
 
 
+@router.get("/users/{user_id}/borrow-history", summary="Get User's Complete Borrow History")
+def get_user_borrow_history(
+    user_id: str,
+    status: Optional[str] = Query(None, description="Filter by status: pending, active, returned, overdue, rejected, lost"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    token: str = Depends(auth_service.librarian_oauth2)
+) -> Dict:
+    """
+    Get complete borrow history for a specific user.
+    
+    **Librarian Only**
+    
+    This endpoint returns:
+    - All borrow records for the user
+    - Book details for each borrow
+    - Penalty information if any
+    - Status and dates
+    - Pagination support
+    
+    Args:
+    - user_id: The ID of the user
+    - status: Optional status filter
+    - page: Page number for pagination
+    - page_size: Number of records per page
+    
+    Returns:
+    - User information
+    - List of borrow history records
+    - Pagination metadata
+    """
+    verify_librarian(token)
+    return librarian_service.get_user_borrow_history(user_id, status, page, page_size)
+
+
 @router.get("/readers", summary="List All Readers")
 def list_readers(
     status_filter: Optional[str] = Query(

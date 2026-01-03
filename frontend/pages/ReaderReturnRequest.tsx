@@ -10,6 +10,7 @@ import Swal from 'sweetalert2';
 
 export const ReaderReturnRequest: React.FC = () => {
   const [activeLoans, setActiveLoans] = useState<CurrentlyBorrowedBook[]>([]);
+  const [cardStatus, setCardStatus] = useState<string>('Active');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -27,6 +28,7 @@ export const ReaderReturnRequest: React.FC = () => {
       // Fetch currently borrowed books from the history API
       const response = await api.getCurrentlyBorrowed();
       setActiveLoans(response.currently_borrowed_books || []);
+      setCardStatus(response.card_status || 'Active');
     } catch (err: any) {
       if (err.message && err.message.includes('Session expired')) {
         navigate('/login');
@@ -80,6 +82,31 @@ export const ReaderReturnRequest: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in-up">
+      {/* Blocked Card Warning */}
+      {cardStatus === 'Blocked' && (
+        <div className="bg-red-50 border-4 border-red-600 rounded-xl p-6 shadow-lg">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0">
+              <div className="bg-red-100 rounded-full p-3">
+                <AlertCircle className="w-8 h-8 text-red-600" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-bold text-red-600 mb-2">🚫 CARD PERMANENTLY BLOCKED</h3>
+              <div className="space-y-2 text-gray-800">
+                <p className="font-semibold">⚠️ Your reading card has been permanently blocked.</p>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  <li>You can <strong>ONLY return books</strong> through this page</li>
+                  <li><strong>CANNOT borrow</strong> any new books</li>
+                  <li>Even after returning all books, your card <strong>remains blocked</strong></li>
+                  <li>Must <strong>pay ALL fines</strong> and contact library management for review</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Return Books</h1>
         <p className="text-gray-600">

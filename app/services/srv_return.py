@@ -193,6 +193,7 @@ class ReturnService:
         infraction_added = False
         card_blocked = False
         block_reason = None
+        unblock_instructions = None
         
         # Rule 3: 30+ days late = immediate permanent block
         if days_overdue >= 30:
@@ -200,6 +201,7 @@ class ReturnService:
                 reading_card.status = CardStatusEnum.blocked
             card_blocked = True
             block_reason = f"Returned book {days_overdue} days late (≥30 days)"
+            unblock_instructions = "⚠️ CARD PERMANENTLY BLOCKED. Reader must pay ALL outstanding fines and contact library management for review. Card will NOT be automatically unblocked."
         # Rule 1: >5 days late = add infraction
         elif days_overdue > 5:
             reader.infraction_count += 1
@@ -211,6 +213,7 @@ class ReturnService:
                     reading_card.status = CardStatusEnum.blocked
                 card_blocked = True
                 block_reason = f"Accumulated {reader.infraction_count} infractions"
+                unblock_instructions = "⚠️ CARD PERMANENTLY BLOCKED (3 infractions). Reader must pay ALL outstanding fines and contact library management for review. Card will NOT be automatically unblocked."
 
         # Set actual return date
         detail.real_return_date = return_datetime
@@ -320,6 +323,7 @@ class ReturnService:
             "total_infractions": reader.infraction_count if reader else 0,
             "card_blocked": card_blocked,
             "block_reason": block_reason,
+            "unblock_instructions": unblock_instructions,
             "card_unsuspended": card_unsuspended
         }
 

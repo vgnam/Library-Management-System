@@ -135,6 +135,7 @@ export interface CurrentBorrowedResponse {
   total_borrowed: number;
   currently_borrowed_books: CurrentlyBorrowedBook[];
   card_type?: string;
+  card_status?: string;
   max_books?: number;
   remaining_slots?: number;
   has_overdue?: boolean;
@@ -357,4 +358,37 @@ export interface RemoveBanResponse {
   card_id: string;
   old_status: string;
   new_status: string;
+}
+
+export interface UserBorrowHistoryRecord {
+  borrow_detail_id: string;
+  borrow_slip_id: string;
+  book_id: string;
+  book_title_id: string;
+  book_name: string;
+  author: string | null;
+  category: string | null;
+  borrow_date: string;
+  due_date: string | null;
+  actual_return_date: string | null;
+  status: string;
+  is_overdue: boolean;
+  penalty: {
+    penalty_id: string;
+    penalty_type: string;
+    description: string;
+    status: string;
+  } | null;
+}
+
+export interface UserBorrowHistoryResponse {
+  user_id: string;
+  reader_id: string;
+  username: string;
+  full_name: string;
+  total_count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  history: UserBorrowHistoryRecord[];
 }

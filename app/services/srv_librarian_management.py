@@ -292,6 +292,121 @@ class LibrarianManagementService:
                 detail=f"Failed to remove ban: {str(e)}"
             )
 
+    def get_user_borrow_history(self, user_id: str, status_filter: Optional[str] = None, 
+                                 page: int = 1, page_size: int = 20) -> Dict:
+        """
+        Get complete borrow history for a specific user
+        
+        Args:
+            user_id: The user ID to get history for
+            status_filter: Optional status filter ('pending', 'active', 'returned', 'overdue', 'rejected', 'lost')
+            page: Page number
+            page_size: Items per page
+            
+        Returns:
+            Dictionary with borrow history records and pagination info
+        """
+        try:
+            # Verify user exists and get reader info
+            user = db.session.query(User).filter(User.user_id == user_id).first()
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"User with ID {user_id} not found"
+                )
+            
+            reader = db.session.query(Reader).filter(Reader.user_id == user_id).first()
+            if not reader:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Reader profile not found for user {user_id}"
+                )
+            
+            # Build query for borrow slip details
+            query = (
+                db.session.query(BorrowSlipDetail)
+                .join(BorrowSlip, BorrowSlipDetail.borrow_slip_id == BorrowSlip.bs_id)
+                .filter(BorrowSlip.reader_id == reader.reader_id)
+                .options(
+                    joinedload(BorrowSlipDetail.book).joinedload(Book.book_title),
+                    joinedload(BorrowSlipDetail.borrow_slip),
+                    joinedload(BorrowSlipDetail.penalty)
+                )
+            )
+            
+            # Apply status filter if provided
+            if status_filter and status_filter.lower() != 'all':
+                try:
+                    status_enum = BorrowStatusEnum(status_filter.capitalize())
+                    query = query.filter(BorrowSlipDetail.status == status_enum)
+                except ValueError:
+                    pass  # Invalid status, return all
+            
+            # Order by borrow date (most recent first)
+            query = query.order_by(BorrowSlip.borrow_date.desc())
+            
+            # Get total count
+            total_count = query.count()
+            
+            # Apply pagination
+            offset = (page - 1) * page_size
+            borrow_details = query.offset(offset).limit(page_size).all()
+            
+            # Build response
+            history = []
+            for detail in borrow_details:
+                borrow_slip = detail.borrow_slip
+                book = detail.book
+                book_title = book.book_title if book else None
+                penalty = detail.penalty if detail.penalty else None
+                
+                # Calculate if overdue
+                is_overdue = False
+                if detail.status == BorrowStatusEnum.active and detail.return_date:
+                    is_overdue = datetime.now() > detail.return_date
+                
+                record = {
+                    "borrow_detail_id": detail.id,
+                    "borrow_slip_id": borrow_slip.bs_id,
+                    "book_id": book.book_id if book else None,
+                    "book_title_id": book_title.book_title_id if book_title else None,
+                    "book_name": book_title.name if book_title else "Unknown",
+                    "author": book_title.author if book_title else None,
+                    "category": book_title.category if book_title else None,
+                    "borrow_date": borrow_slip.borrow_date.isoformat() if borrow_slip.borrow_date else None,
+                    "due_date": detail.return_date.isoformat() if detail.return_date else None,
+                    "actual_return_date": borrow_slip.return_date.isoformat() if borrow_slip.return_date else None,
+                    "status": detail.status.value if detail.status else None,
+                    "is_overdue": is_overdue,
+                    "penalty": {
+                        "penalty_id": penalty.penalty_id,
+                        "penalty_type": penalty.penalty_type.value,
+                        "description": penalty.description,
+                        "status": penalty.status.value
+                    } if penalty else None
+                }
+                history.append(record)
+            
+            return {
+                "user_id": user_id,
+                "reader_id": reader.reader_id,
+                "username": user.username,
+                "full_name": user.full_name,
+                "total_count": total_count,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": (total_count + page_size - 1) // page_size,
+                "history": history
+            }
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to get borrow history: {str(e)}"
+            )
+
     def list_all_readers(self, 
                         status_filter: Optional[str] = None,
                         limit: int = 100,

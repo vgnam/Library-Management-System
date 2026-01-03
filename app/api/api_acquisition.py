@@ -8,6 +8,7 @@ from typing import List, Optional
 from app.services.srv_acquisition import AcquisitionService
 from app.services.srv_auth import AuthService
 from app.schemas.sche_base import DataResponse
+from app.core.dependencies import check_all_readers_infractions
 
 router = APIRouter(prefix="/acquisition", tags=["Acquisition"])
 auth_service = AuthService()
@@ -39,7 +40,8 @@ class CreateBookTitleModel(BaseModel):
 @router.post("/create", summary="Create Acquisition Slip")
 def create_acquisition_slip(
     data: CreateAcquisitionModel = Body(...),
-    token: str = Depends(auth_service.librarian_oauth2)
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> DataResponse:
     """
     Create a new acquisition slip to add books to library.
@@ -79,7 +81,8 @@ def get_acquisition_history(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(10, ge=1, le=100, description="Items per page"),
     librarian_id: Optional[str] = Query(None, description="Filter by librarian ID"),
-    token: str = Depends(auth_service.librarian_oauth2)
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> DataResponse:
     """
     Get acquisition history with pagination.
@@ -103,7 +106,8 @@ def get_acquisition_history(
 @router.get("/detail/{acq_id}", summary="Get Acquisition Detail")
 def get_acquisition_detail(
     acq_id: str,
-    token: str = Depends(auth_service.librarian_oauth2)
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> DataResponse:
     """
     Get detailed information about a specific acquisition slip.
@@ -122,7 +126,8 @@ def get_acquisition_detail(
 
 @router.get("/publishers", summary="Get All Publishers")
 def get_publishers(
-    token: str = Depends(auth_service.librarian_oauth2)
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> DataResponse:
     """
     Get all publishers for dropdown selection.
@@ -142,7 +147,8 @@ def get_publishers(
 @router.post("/book-title/create", summary="Create New Book Title")
 def create_book_title(
     data: CreateBookTitleModel = Body(...),
-    token: str = Depends(auth_service.librarian_oauth2)
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> DataResponse:
     """
     Create a new book title if it doesn't exist.

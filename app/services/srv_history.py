@@ -35,29 +35,8 @@ class HistoryService:
             raise HTTPException(status_code=404, detail="Reader not found")
 
         # ===========================================================
-        # 🔥 STEP 1 — AUTO UPDATE OVERDUE STATUS IN DATABASE
+        # QUERY HISTORY
         # ===========================================================
-        now = datetime.utcnow()
-
-        active_details = db.session.query(BorrowSlipDetail).join(
-            BorrowSlip, BorrowSlipDetail.borrow_slip_id == BorrowSlip.bs_id
-        ).filter(
-            BorrowSlip.reader_id == reader_id,
-            BorrowSlipDetail.status == "active"
-        ).all()
-
-        updated = False
-        for detail in active_details:
-            due_date = detail.return_date  # this is actually "detail_due_date"
-            if due_date and now > due_date:
-                detail.status = "overdue"
-                updated = True
-
-        if updated:
-            db.session.commit()
-
-        # ===========================================================
-        # 🔥 STEP 2 — QUERY HISTORY (AFTER STATUS HAS BEEN UPDATED)
         # ===========================================================
         query = db.session.query(
             BorrowSlip.bs_id,
@@ -244,12 +223,7 @@ class HistoryService:
 
     @staticmethod
     def get_currently_borrowed_books(reader_id: str) -> dict:
-        """Get books currently being borrowed (status = Active, Overdue, or PendingReturn)
-        
-        AUTO-UPDATE LOGIC:
-        1. Updates BorrowSlipDetail.status from Active -> Overdue if past due date
-        2. Auto-suspends reading card if any overdue books exist
-        """
+        """Get books currently being borrowed (status = Active, Overdue, or PendingReturn)"""
         reader = db.session.query(Reader).filter(Reader.reader_id == reader_id).first()
         if not reader:
             raise HTTPException(status_code=404, detail="Reader not found")
@@ -265,28 +239,7 @@ class HistoryService:
 
         now = datetime.utcnow()
         
-        # ========================================
-        # AUTO-UPDATE: Mark overdue books
-        # ========================================
-        # Find all Active books that are past due date
-        overdue_details = db.session.query(BorrowSlipDetail).join(
-            BorrowSlip, BorrowSlipDetail.borrow_slip_id == BorrowSlip.bs_id
-        ).filter(
-            BorrowSlip.reader_id == reader_id,
-            BorrowSlipDetail.status == BorrowStatusEnum.active,
-            BorrowSlipDetail.return_date < now
-        ).all()
-        
-        # Update them to Overdue status
-        for detail in overdue_details:
-            detail.status = BorrowStatusEnum.overdue
-        
-        if overdue_details:
-            db.session.commit()
-        
-        # ========================================
-        # Get current borrowed books (including newly marked overdue)
-        # ========================================
+        # Get current borrowed books
         raw_results = db.session.query(
             BorrowSlipDetail.id,
             BorrowSlipDetail.borrow_slip_id,
@@ -307,34 +260,7 @@ class HistoryService:
         book_dict = {b.book_id: b for b in books}
         has_overdue = any(result.detail_status_str.lower() == 'overdue' for result in raw_results)
         
-        # ========================================
-        # AUTO-BLOCK: Check for severe violations
-        # ========================================
-        should_block = False
-        block_reason = None
-        
-        # Check Rule 1: Any book overdue ≥30 days -> Immediate block
-        for result in raw_results:
-            if result.detail_due_date and now > result.detail_due_date:
-                days_overdue = (now.date() - result.detail_due_date.date()).days
-                if days_overdue >= 30:
-                    should_block = True
-                    block_reason = f"Book overdue for {days_overdue} days (≥30 days)"
-                    break
-        
-        # Check Rule 2: 3+ infractions -> Block
-        if not should_block and reader.infraction_count >= 3:
-            should_block = True
-            block_reason = f"Accumulated {reader.infraction_count} infractions"
-        
-        # Apply block if needed
-        if should_block and reading_card and reading_card.status != CardStatusEnum.blocked:
-            reading_card.status = CardStatusEnum.blocked
-            db.session.commit()
-        
-        # ========================================
-        # AUTO-SUSPEND/UNSUSPEND CARD (only if not blocked)
-        # ========================================
+        # AUTO-SUSPEND/UNSUSPEND CARD
         if reading_card and reading_card.status != CardStatusEnum.blocked:
             if has_overdue:
                 # Has overdue books -> Suspend if not already suspended

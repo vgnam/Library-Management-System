@@ -27,8 +27,10 @@ from app.core.security import (
 )
 from app.schemas.sche_base import DataResponse
 
-
+import pytz
 from app.core.config import settings
+
+tz_vn = pytz.timezone("Asia/Ho_Chi_Minh")
 
 class AuthService:
     def __init__(self):

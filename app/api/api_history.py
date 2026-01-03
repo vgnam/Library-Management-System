@@ -5,6 +5,7 @@ from app.services.srv_auth import AuthService
 from app.services.srv_history import HistoryService
 from app.schemas.sche_base import DataResponse
 from app.models.model_reader import Reader
+from app.core.dependencies import check_reader_infractions
 
 # Create router for history endpoints
 router = APIRouter(prefix="/history", tags=["History"])
@@ -33,7 +34,8 @@ def get_borrow_history(
         status: str = Query(None, description="Filter by status (Pending/Active/Returned/Overdue/Rejected)"),
         page: int = Query(1, ge=1, description="Page number"),
         page_size: int = Query(10, ge=1, le=100, description="Items per page"),
-        token: str = Depends(auth_service.reader_oauth2)  # Automatically extracts token
+        token: str = Depends(auth_service.reader_oauth2),
+        infraction_check: dict = Depends(lambda token=Depends(auth_service.reader_oauth2): check_reader_infractions(token))
 ) -> DataResponse:
     """
     Returns a paginated list of all borrow history for the current reader.
@@ -66,7 +68,8 @@ def get_borrow_history(
 
 @router.get("/current", summary="Get Currently Borrowed Books")
 def get_currently_borrowed_books(
-        token: str = Depends(auth_service.reader_oauth2)
+        token: str = Depends(auth_service.reader_oauth2),
+        infraction_check: dict = Depends(lambda token=Depends(auth_service.reader_oauth2): check_reader_infractions(token))
 ) -> DataResponse:
     """
     Get all books that are currently being borrowed by the reader (not yet returned).
@@ -82,7 +85,8 @@ def get_currently_borrowed_books(
 
 @router.get("/overdue", summary="Get Overdue Books")
 def get_overdue_books(
-        token: str = Depends(auth_service.reader_oauth2)
+        token: str = Depends(auth_service.reader_oauth2),
+        infraction_check: dict = Depends(lambda token=Depends(auth_service.reader_oauth2): check_reader_infractions(token))
 ) -> DataResponse:
     """
     Get all books that are currently overdue (past due date and not returned yet).
@@ -98,7 +102,8 @@ def get_overdue_books(
 # ✅ NEW ENDPOINT: Get Returned Books
 @router.get("/returned", summary="Get Returned Books")
 def get_returned_books(
-        token: str = Depends(auth_service.reader_oauth2)
+        token: str = Depends(auth_service.reader_oauth2),
+        infraction_check: dict = Depends(lambda token=Depends(auth_service.reader_oauth2): check_reader_infractions(token))
 ) -> DataResponse:
     """
     Get all books that have been returned by the reader.

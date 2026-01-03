@@ -91,7 +91,7 @@ class BorrowService:
         if card.status == CardStatusEnum.blocked:
             raise HTTPException(
                 status_code=403, 
-                detail=f"Reading card is permanently blocked. Cannot borrow books. (Infractions: {reader.infraction_count})"
+                detail=f"Reading card is permanently blocked. Cannot borrow books. (Infractions: {card.infraction_count if card else 0})"
             )
         
         # Check for suspended status (temporary ban)
@@ -207,7 +207,7 @@ class BorrowService:
             db.session.commit()
             raise HTTPException(
                 status_code=403,
-                detail=f"Cannot approve: Reader's card is permanently blocked (Infractions: {reader.infraction_count if reader else 0})"
+                detail=f"Cannot approve: Reader's card is permanently blocked (Infractions: {card.infraction_count if card else 0})"
             )
         
         # Check for suspended status

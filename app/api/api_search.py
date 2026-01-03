@@ -4,6 +4,7 @@ from typing import Optional
 from app.services.srv_auth import AuthService
 from app.services.srv_search import BookSearchService
 from app.schemas.sche_base import DataResponse
+from app.core.dependencies import check_reader_infractions
 
 router = APIRouter(prefix="/books", tags=["Books"])
 auth_service = AuthService()
@@ -19,7 +20,8 @@ def search_books(
         publisher: Optional[str] = Query(None, description="Exact match publisher filter"),
         page: int = Query(1, ge=1),
         page_size: int = Query(12, ge=1, le=100),
-        token: str = Depends(auth_service.reader_oauth2)
+        token: str = Depends(auth_service.reader_oauth2),
+        infraction_check: dict = Depends(lambda token=Depends(auth_service.reader_oauth2): check_reader_infractions(token))
 ) -> DataResponse:
     auth_service.get_current_user(token)
 

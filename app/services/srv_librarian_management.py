@@ -89,7 +89,7 @@ class LibrarianManagementService:
                     "reader_id": reader.reader_id,
                     "total_borrowed": total_borrowed,
                     "currently_borrowed": currently_borrowed,
-                    "infraction_count": reader.infraction_count,
+                    "infraction_count": reader.reading_card.infraction_count if reader.reading_card else 0,
                 }
 
                 # Add reading card info if exists
@@ -486,7 +486,7 @@ class LibrarianManagementService:
                     "reader_id": reader.reader_id,
                     "total_borrowed": total_borrowed,
                     "currently_borrowed": currently_borrowed,
-                    "infraction_count": reader.infraction_count,
+                    "infraction_count": card.infraction_count if card else 0,
                     "card_id": card.card_id,
                     "card_type": card.card_type.value,
                     "card_status": card.status.value,

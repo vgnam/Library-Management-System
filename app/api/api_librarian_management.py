@@ -6,6 +6,7 @@ from app.services.srv_librarian_management import LibrarianManagementService
 from app.services.srv_auth import AuthService
 from app.models.model_librarian import Librarian
 from fastapi_sqlalchemy import db
+from app.core.dependencies import check_all_readers_infractions
 
 router = APIRouter(prefix="/librarian", tags=["Librarian Management"])
 
@@ -31,7 +32,8 @@ def verify_librarian(token: str = Depends(auth_service.librarian_oauth2)):
 @router.get("/users/{user_id}", summary="Get User Information")
 def get_user_info(
     user_id: str,
-    token: str = Depends(auth_service.librarian_oauth2)
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> Dict:
     """
     Get detailed information about a user including reader info and card status.
@@ -51,7 +53,8 @@ def get_user_info(
 @router.get("/users/{user_id}/current-borrows", summary="Get User's Current Borrowed Books")
 def get_user_current_borrows(
     user_id: str,
-    token: str = Depends(auth_service.librarian_oauth2)
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> List[Dict]:
     """
     Get all currently borrowed books for a specific user.
@@ -72,7 +75,8 @@ def get_user_current_borrows(
 def remove_ban(
     user_id: str,
     reason: Optional[str] = Query(None, description="Reason for removing the ban"),
-    token: str = Depends(auth_service.librarian_oauth2)
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> Dict:
     """
     Remove ban or suspension from a user's reading card.
@@ -103,7 +107,8 @@ def get_user_borrow_history(
     status: Optional[str] = Query(None, description="Filter by status: pending, active, returned, overdue, rejected, lost"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    token: str = Depends(auth_service.librarian_oauth2)
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> Dict:
     """
     Get complete borrow history for a specific user.
@@ -140,7 +145,8 @@ def list_readers(
     ),
     limit: int = Query(100, ge=1, le=500, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
-    token: str = Depends(auth_service.librarian_oauth2)
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> Dict:
     """
     Get list of all readers with their card status and basic information.
@@ -197,7 +203,8 @@ def get_user_borrow_history(
 @router.get("/users/search/{username}", summary="Search User by Username")
 def search_user_by_username(
     username: str,
-    token: str = Depends(auth_service.librarian_oauth2)
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> List[Dict]:
     """
     Search for users by username (supports partial matching).
@@ -239,7 +246,7 @@ def search_user_by_username(
             if user.reader:
                 user_data["reader_id"] = user.reader.reader_id
                 user_data["total_borrowed"] = user.reader.total_borrowed
-                user_data["infraction_count"] = user.reader.infraction_count
+                user_data["infraction_count"] = user.reader.reading_card.infraction_count if user.reader.reading_card else 0
                 
                 if user.reader.reading_card:
                     user_data["card_status"] = user.reader.reading_card.status.value

@@ -48,3 +48,6 @@ Thumbs.db
 frontend/node_modules/
 
 node_modules
+
+*.md
+!README.md

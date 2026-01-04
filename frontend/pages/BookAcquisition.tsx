@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { Category, Publisher, BookItemForAcquisition, AcquisitionSlip } from '../types';
 import { Button } from '../components/Button';
+import Swal from 'sweetalert2';
 
 export const BookAcquisition: React.FC = () => {
   const navigate = useNavigate();
@@ -229,6 +230,53 @@ export const BookAcquisition: React.FC = () => {
     }
   };
 
+  const handleDeleteBookTitle = async (bookTitleId: string, bookName: string) => {
+    const result = await Swal.fire({
+      title: 'Delete Book Title?',
+      html: `Are you sure you want to delete <strong>${bookName}</strong>?<br><br><span style="color: #dc2626; font-size: 0.875rem;">This will delete all physical copies of this book. This action cannot be undone.</span>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, delete',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      const response = await api.deleteBookTitle(bookTitleId);
+      
+      Swal.fire({
+        icon: 'success',
+        title: 'Deleted!',
+        text: response.data.message || 'Book title deleted successfully',
+        timer: 2000,
+        showConfirmButton: false
+      });
+      
+      // Remove from search results
+      setSearchResults(searchResults.filter(book => book.book_title_id !== bookTitleId));
+      
+      // Clear current item if it was selected
+      if (currentItem.book_title_id === bookTitleId) {
+        setCurrentItem({
+          book_title_id: '',
+          book_name: '',
+          quantity: 1,
+          price: 0
+        });
+      }
+      
+    } catch (err: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Failed',
+        text: err.message || 'Failed to delete book title'
+      });
+    }
+  };
+
   const totalAmount = acquisitionItems.reduce(
     (sum, item) => sum + (item.quantity * item.price),
     0
@@ -284,13 +332,27 @@ export const BookAcquisition: React.FC = () => {
                 {searchResults.map((book) => (
                   <div
                     key={book.book_title_id}
-                    className="p-3 border-b hover:bg-gray-50 cursor-pointer"
-                    onClick={() => selectBookFromSearch(book)}
+                    className="p-3 border-b hover:bg-gray-50 flex justify-between items-center"
                   >
-                    <div className="font-semibold">{book.name}</div>
-                    <div className="text-sm text-gray-600">
-                      by {book.author} | {book.publisher} | Available: {book.available_books} | {book.category}
+                    <div 
+                      className="flex-1 cursor-pointer"
+                      onClick={() => selectBookFromSearch(book)}
+                    >
+                      <div className="font-semibold">{book.name}</div>
+                      <div className="text-sm text-gray-600">
+                        by {book.author} | {book.publisher} | Available: {book.available_books} | {book.category}
+                      </div>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteBookTitle(book.book_title_id, book.name);
+                      }}
+                      className="ml-4 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded border border-red-300"
+                      title="Delete this book title"
+                    >
+                      Delete
+                    </button>
                   </div>
                 ))}
               </div>

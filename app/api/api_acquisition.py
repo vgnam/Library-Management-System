@@ -189,3 +189,25 @@ def create_book_title(
         message="Book title created successfully" if not result.get("exists") else "Book title already exists",
         data=result
     )
+
+
+@router.delete("/book-title/{book_title_id}", summary="Delete Book Title")
+def delete_book_title(
+    book_title_id: str,
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
+) -> DataResponse:
+    """
+    Delete a book title and all its associated books.
+    Only accessible by librarians.
+    Will fail if any books are currently borrowed.
+    """
+    auth_service.get_current_user(token)
+    
+    result = acquisition_service.delete_book_title(book_title_id)
+    
+    return DataResponse(
+        success=True,
+        message=result["message"],
+        data=result
+    )

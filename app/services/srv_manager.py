@@ -202,6 +202,23 @@ class ManagerService:
             # Calculate average borrows per day
             avg_borrows_per_day = recent_borrows / 30 if recent_borrows > 0 else 0
             
+            # Get daily borrowing data for the last 30 days
+            daily_borrows = []
+            for i in range(30):
+                day = datetime.now() - timedelta(days=29-i)
+                day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+                day_end = day.replace(hour=23, minute=59, second=59, microsecond=999999)
+                
+                count = db.session.query(BorrowSlip).filter(
+                    BorrowSlip.borrow_date >= day_start,
+                    BorrowSlip.borrow_date <= day_end
+                ).count()
+                
+                daily_borrows.append({
+                    "date": day.strftime("%m/%d"),
+                    "count": count
+                })
+            
             return {
                 "cards": {
                     "total_issued": total_cards,
@@ -233,7 +250,8 @@ class ManagerService:
                 },
                 "trends": {
                     "recent_borrows_30_days": recent_borrows,
-                    "avg_borrows_per_day": round(avg_borrows_per_day, 2)
+                    "avg_borrows_per_day": round(avg_borrows_per_day, 2),
+                    "daily_borrows": daily_borrows
                 }
             }
             

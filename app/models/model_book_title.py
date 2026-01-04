@@ -17,7 +17,7 @@ class BookTitle(Base):
 
     publisher = relationship("Publisher", back_populates="book_titles")
     books = relationship("Book", back_populates="book_title")
-    category = relationship("Category", back_populates="book_titles")
+    category = relationship("Category")
     acquisition_details = relationship("AcquisitionSlipDetail", back_populates="book_title")
 
     price = Column(Integer, nullable=False, default=100000)

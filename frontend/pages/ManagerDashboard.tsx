@@ -3,6 +3,7 @@ import { api } from '../services/api';
 import { SystemStatistics, LibrarianInfo, CreateLibrarianRequest } from '../types';
 import { Button } from '../components/Button';
 import Swal from 'sweetalert2';
+import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
 export const ManagerDashboard: React.FC = () => {
   const [statistics, setStatistics] = useState<SystemStatistics | null>(null);
@@ -161,30 +162,58 @@ export const ManagerDashboard: React.FC = () => {
       {/* Statistics Tab */}
       {activeTab === 'statistics' && statistics && (
         <div className="space-y-6">
-          {/* Cards Statistics */}
+          {/* Cards Statistics with Pie Chart */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold mb-4">Reading Cards</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <StatCard
-                title="Total Issued"
-                value={statistics.cards.total_issued}
-                color="blue"
-              />
-              <StatCard
-                title="Active"
-                value={statistics.cards.active}
-                color="green"
-              />
-              <StatCard
-                title="Suspended"
-                value={statistics.cards.suspended}
-                color="yellow"
-              />
-              <StatCard
-                title="Blocked"
-                value={statistics.cards.blocked}
-                color="red"
-              />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-4">
+                <StatCard
+                  title="Total Issued"
+                  value={statistics.cards.total_issued}
+                  color="blue"
+                />
+                <StatCard
+                  title="Active"
+                  value={statistics.cards.active}
+                  color="green"
+                />
+                <StatCard
+                  title="Suspended"
+                  value={statistics.cards.suspended}
+                  color="yellow"
+                />
+                <StatCard
+                  title="Blocked"
+                  value={statistics.cards.blocked}
+                  color="red"
+                />
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Active', value: statistics.cards.active },
+                        { name: 'Suspended', value: statistics.cards.suspended },
+                        { name: 'Blocked', value: statistics.cards.blocked }
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      <Cell fill="#10b981" />
+                      <Cell fill="#f59e0b" />
+                      <Cell fill="#ef4444" />
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 
@@ -205,35 +234,65 @@ export const ManagerDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Borrowing Statistics */}
+          {/* Borrowing Statistics with Bar Chart */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold mb-4">Borrowing Frequency</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-              <StatCard
-                title="Total Borrows"
-                value={statistics.borrowing.total_borrows}
-                color="blue"
-              />
-              <StatCard
-                title="Active"
-                value={statistics.borrowing.active_borrows}
-                color="green"
-              />
-              <StatCard
-                title="Overdue"
-                value={statistics.borrowing.overdue_borrows}
-                color="red"
-              />
-              <StatCard
-                title="Returned"
-                value={statistics.borrowing.returned_borrows}
-                color="gray"
-              />
-            </div>
-            <div className="bg-blue-50 p-4 rounded">
-              <p className="text-sm text-gray-700">
-                Return Rate: <span className="font-semibold">{statistics.borrowing.return_rate}%</span>
-              </p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <StatCard
+                    title="Total Borrows"
+                    value={statistics.borrowing.total_borrows}
+                    color="blue"
+                  />
+                  <StatCard
+                    title="Active"
+                    value={statistics.borrowing.active_borrows}
+                    color="green"
+                  />
+                  <StatCard
+                    title="Overdue"
+                    value={statistics.borrowing.overdue_borrows}
+                    color="red"
+                  />
+                  <StatCard
+                    title="Returned"
+                    value={statistics.borrowing.returned_borrows}
+                    color="gray"
+                  />
+                </div>
+                <div className="bg-blue-50 p-4 rounded">
+                  <p className="text-sm text-gray-700">
+                    Return Rate: <span className="font-semibold">{statistics.borrowing.return_rate}%</span>
+                  </p>
+                </div>
+              </div>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={[
+                      { name: 'Active', value: statistics.borrowing.active_borrows, fill: '#10b981' },
+                      { name: 'Overdue', value: statistics.borrowing.overdue_borrows, fill: '#ef4444' },
+                      { name: 'Returned', value: statistics.borrowing.returned_borrows, fill: '#6b7280' }
+                    ]}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="value" fill="#8884d8">
+                      {[
+                        { name: 'Active', value: statistics.borrowing.active_borrows, fill: '#10b981' },
+                        { name: 'Overdue', value: statistics.borrowing.overdue_borrows, fill: '#ef4444' },
+                        { name: 'Returned', value: statistics.borrowing.returned_borrows, fill: '#6b7280' }
+                      ].map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 
@@ -259,41 +318,84 @@ export const ManagerDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Penalties */}
+          {/* Penalties with Pie Chart */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold mb-4">Penalties</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <StatCard
-                title="Total Penalties"
-                value={statistics.penalties.total_penalties}
-                color="red"
-              />
-              <StatCard
-                title="Unpaid Penalties"
-                value={statistics.penalties.unpaid_penalties}
-                color="orange"
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-gray-50 p-4 rounded">
-                <p className="text-sm text-gray-600">Total Penalty Amount</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {statistics.penalties.total_amount.toLocaleString('vi-VN')} VND
-                </p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <StatCard
+                    title="Total Penalties"
+                    value={statistics.penalties.total_penalties}
+                    color="red"
+                  />
+                  <StatCard
+                    title="Unpaid Penalties"
+                    value={statistics.penalties.unpaid_penalties}
+                    color="orange"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-gray-50 p-4 rounded">
+                    <p className="text-sm text-gray-600">Total Penalty Amount</p>
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {statistics.penalties.total_amount.toLocaleString('vi-VN')} VND
+                    </p>
+                  </div>
+                  <div className="bg-red-50 p-4 rounded">
+                    <p className="text-sm text-gray-600">Unpaid Amount</p>
+                    <p className="text-2xl font-semibold text-red-600">
+                      {statistics.penalties.unpaid_amount.toLocaleString('vi-VN')} VND
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="bg-red-50 p-4 rounded">
-                <p className="text-sm text-gray-600">Unpaid Amount</p>
-                <p className="text-2xl font-semibold text-red-600">
-                  {statistics.penalties.unpaid_amount.toLocaleString('vi-VN')} VND
-                </p>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { 
+                          name: 'Paid', 
+                          value: statistics.penalties.total_penalties - statistics.penalties.unpaid_penalties,
+                          amount: statistics.penalties.total_amount - statistics.penalties.unpaid_amount
+                        },
+                        { 
+                          name: 'Unpaid', 
+                          value: statistics.penalties.unpaid_penalties,
+                          amount: statistics.penalties.unpaid_amount
+                        }
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      label={({ name, percent, value }) => 
+                        `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
+                      }
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      <Cell fill="#10b981" />
+                      <Cell fill="#ef4444" />
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: any, name: string, props: any) => [
+                        `${value} penalties (${props.payload.amount.toLocaleString('vi-VN')} VND)`,
+                        name
+                      ]}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>
 
-          {/* Reading Trends */}
+          {/* Reading Trends with Bar Chart */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold mb-4">Reading Trends (Last 30 Days)</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <StatCard
                 title="Recent Borrows"
                 value={statistics.trends.recent_borrows_30_days}
@@ -304,6 +406,24 @@ export const ManagerDashboard: React.FC = () => {
                 value={statistics.trends.avg_borrows_per_day.toFixed(2)}
                 color="green"
               />
+            </div>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={statistics.trends.daily_borrows}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="date" 
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="count" fill="#3b82f6" name="Borrows" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>

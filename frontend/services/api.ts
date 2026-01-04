@@ -402,6 +402,12 @@ class ApiService {
     });
   }
 
+  async deleteBookTitle(bookTitleId: string): Promise<any> {
+    return this.request<any>(`/acquisition/book-title/${bookTitleId}`, {
+      method: 'DELETE'
+    });
+  }
+
   async createAcquisitionSlip(data: {
     books: Array<{
       book_title_id: string;

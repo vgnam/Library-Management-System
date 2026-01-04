@@ -438,6 +438,7 @@ export interface SystemStatistics {
   trends: {
     recent_borrows_30_days: number;
     avg_borrows_per_day: number;
+    daily_borrows: Array<{ date: string; count: number }>;
   };
 }
 

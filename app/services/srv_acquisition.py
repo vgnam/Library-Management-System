@@ -344,3 +344,67 @@ class AcquisitionService:
             "publisher_id": book_title.publisher_id,
             "exists": False
         }
+
+    @staticmethod
+    def delete_book_title(book_title_id: str) -> dict:
+        """
+        Delete a book title and all its associated books
+        
+        Args:
+            book_title_id: ID of the book title to delete
+            
+        Returns:
+            dict with result message
+            
+        Raises:
+            HTTPException: If book title not found or if any books are currently borrowed
+        """
+        # Check if book title exists
+        book_title = db.session.query(BookTitle).filter(
+            BookTitle.book_title_id == book_title_id
+        ).first()
+        
+        if not book_title:
+            raise HTTPException(status_code=404, detail="Book title not found")
+        
+        # Check if any books are currently borrowed
+        from app.models.model_borrow import BorrowSlipDetail, BorrowStatusEnum
+        
+        borrowed_books = db.session.query(Book).join(
+            BorrowSlipDetail,
+            Book.book_id == BorrowSlipDetail.book_id
+        ).filter(
+            Book.book_title_id == book_title_id,
+            BorrowSlipDetail.status.in_([
+                BorrowStatusEnum.active,
+                BorrowStatusEnum.overdue,
+                BorrowStatusEnum.pending_return
+            ])
+        ).count()
+        
+        if borrowed_books > 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot delete book title. {borrowed_books} book(s) are currently borrowed."
+            )
+        
+        # Get all books associated with this book title
+        books = db.session.query(Book).filter(
+            Book.book_title_id == book_title_id
+        ).all()
+        
+        book_count = len(books)
+        
+        # Delete all books
+        for book in books:
+            db.session.delete(book)
+        
+        # Delete the book title
+        db.session.delete(book_title)
+        db.session.commit()
+        
+        return {
+            "book_title_id": book_title_id,
+            "deleted_books": book_count,
+            "message": f"Book title '{book_title.name}' and {book_count} associated book(s) deleted successfully"
+        }

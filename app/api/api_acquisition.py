@@ -32,6 +32,7 @@ class CreateBookTitleModel(BaseModel):
     """Model for creating new book title"""
     name: str = Field(..., description="Book title name")
     author: str = Field(..., description="Author name")
+    isbn: str = Field(..., description="ISBN")
     category_id: str = Field(..., description="Category ID")
     publisher_id: str = Field(..., description="Publisher ID")
 
@@ -178,6 +179,7 @@ def create_book_title(
     result = acquisition_service.create_book_title(
         name=data.name,
         author=data.author,
+        isbn=data.isbn,
         category_id=data.category_id,
         publisher_id=data.publisher_id
     )

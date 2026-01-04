@@ -93,6 +93,7 @@ class BookSearchService:
                 "author": b.author,
                 "publisher": b.publisher.name if b.publisher else None,
                 "category": b.category.name if b.category else None,
+                "isbn": b.isbn,
                 "total_books": total_books,
                 "borrowed_books": borrowed_books,
                 "available_books": available_books

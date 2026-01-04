@@ -113,6 +113,7 @@ class AcquisitionService:
             details_list.append({
                 "book_title_id": book_title_id,
                 "book_name": book_title.name,
+                "isbn": book_title.isbn,
                 "author": book_title.author,
                 "quantity": quantity,
                 "price": price,
@@ -220,6 +221,7 @@ class AcquisitionService:
                 "detail_id": detail.id,
                 "book_title_id": detail.book_title_id,
                 "book_name": book_title.name if book_title else "Unknown",
+                "isbn": book_title.isbn if book_title else "Unknown",
                 "author": book_title.author if book_title else "Unknown",
                 "category": book_title.category if book_title else "Unknown",
                 "quantity": detail.quantity,
@@ -268,6 +270,7 @@ class AcquisitionService:
     def create_book_title(
         name: str,
         author: str,
+        isbn: str,
         category_id: str,
         publisher_id: str
     ) -> dict:
@@ -286,6 +289,7 @@ class AcquisitionService:
         # Check if book title already exists
         existing = db.session.query(BookTitle).filter(
             BookTitle.name == name,
+            BookTitle.isbn == isbn,
             BookTitle.author == author
         ).first()
         
@@ -294,6 +298,7 @@ class AcquisitionService:
                 "book_title_id": existing.book_title_id,
                 "name": existing.name,
                 "author": existing.author,
+                "isbn": existing.isbn,
                 "category_id": existing.category_id,
                 "publisher_id": existing.publisher_id,
                 "exists": True
@@ -320,6 +325,7 @@ class AcquisitionService:
             book_title_id=book_title_id,
             name=name,
             author=author,
+            isbn=isbn,
             category_id=category_id,
             publisher_id=publisher_id,
             total_quantity=0,
@@ -333,6 +339,7 @@ class AcquisitionService:
             "book_title_id": book_title.book_title_id,
             "name": book_title.name,
             "author": book_title.author,
+            "isbn": book_title.isbn,
             "category": book_title.category_id,
             "publisher_id": book_title.publisher_id,
             "exists": False

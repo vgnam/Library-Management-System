@@ -19,6 +19,7 @@ export const BookAcquisition: React.FC = () => {
   const [newBookTitle, setNewBookTitle] = useState({
     name: '',
     author: '',
+    isbn: '',
     category_id: '',
     publisher_id: ''
   });
@@ -90,7 +91,7 @@ export const BookAcquisition: React.FC = () => {
   };
 
   const handleCreateNewBookTitle = async () => {
-    if (!newBookTitle.name || !newBookTitle.author || !newBookTitle.category_id || !newBookTitle.publisher_id) {
+    if (!newBookTitle.name || !newBookTitle.author || !newBookTitle.isbn || !newBookTitle.category_id || !newBookTitle.publisher_id) {
       setError('Please fill all book title fields');
       return;
     }
@@ -115,6 +116,7 @@ export const BookAcquisition: React.FC = () => {
       setNewBookTitle({
         name: '',
         author: '',
+        isbn: '',
         category: '',
         publisher_id: ''
       });
@@ -319,6 +321,13 @@ export const BookAcquisition: React.FC = () => {
                 <input
                   type="text"
                   className="border rounded px-3 py-2"
+                  placeholder="ISBN *"
+                  value={newBookTitle.isbn}
+                  onChange={(e) => setNewBookTitle({ ...newBookTitle,  isbn: e.target.value })}
+                />
+                <input
+                  type="text"
+                  className="border rounded px-3 py-2"
                   placeholder="Author *"
                   value={newBookTitle.author}
                   onChange={(e) => setNewBookTitle({ ...newBookTitle, author: e.target.value })}
@@ -515,6 +524,7 @@ export const BookAcquisition: React.FC = () => {
           )}
         </div>
       )}
+      
     </div>
   );
 };

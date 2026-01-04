@@ -509,6 +509,8 @@ export const BorrowHistory: React.FC = () => {
           </div>
         </div>
       )}
+
+      
     </div>
   );
 };

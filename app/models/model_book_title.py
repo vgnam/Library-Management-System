@@ -13,6 +13,7 @@ class BookTitle(Base):
     category_id = Column(String(50), ForeignKey("categories.cat_id"))
     author = Column(String(100), nullable=True)
     publisher_id = Column(String(50), ForeignKey("publishers.pub_id"))
+    isbn = Column(String(20), nullable=False)
 
     publisher = relationship("Publisher", back_populates="book_titles")
     books = relationship("Book", back_populates="book_title")

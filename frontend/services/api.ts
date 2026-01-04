@@ -5,6 +5,7 @@ export interface BookWithAvailability {
   book_title_id: string;
   name: string;
   author: string;
+  isbn: string;
   publisher: string;
   category: string;
   available_count: number;
@@ -380,6 +381,10 @@ class ApiService {
     return this.request<any>('/acquisition/publishers');
   }
 
+  async getISBN(): Promise<any> {
+    return this.request<any>('/acquisition/isbn');
+  }
+
   async getCategories(): Promise<any> {
     return this.request<any>('/acquisition/categories');
   }
@@ -387,6 +392,7 @@ class ApiService {
   async createBookTitle(data: {
     name: string;
     author: string;
+    isbn: string;
     category: string;
     publisher_id: string;
   }): Promise<any> {

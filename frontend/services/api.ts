@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../constants';
-import { LoginResponse, SearchResponse, UserRole, BorrowRequest, BorrowStatus, HistoryResponse, CurrentBorrowedResponse, OverdueResponse, RequestReturnBookRequest, ProcessDamageBookRequest, ProcessLostBookRequest, ReaderStatusResponse, ReturnRequest, UserInfo, UserBorrowedBook, RemoveBanResponse, ReadersListResponse, UserBorrowHistoryResponse } from '../types';
+import { LoginResponse, SearchResponse, UserRole, BorrowRequest, BorrowStatus, HistoryResponse, CurrentBorrowedResponse, OverdueResponse, RequestReturnBookRequest, ProcessDamageBookRequest, ProcessLostBookRequest, ReaderStatusResponse, ReturnRequest, UserInfo, UserBorrowedBook, RemoveBanResponse, ReadersListResponse, UserBorrowHistoryResponse, SystemStatistics, LibrarianInfo, CreateLibrarianRequest, CreateLibrarianResponse, DeleteLibrarianResponse } from '../types';
 
 export interface BookWithAvailability {
   book_title_id: string;
@@ -471,6 +471,40 @@ class ApiService {
     params.append('page_size', pageSize.toString());
     
     const res = await this.request<any>(`/librarian/users/${userId}/borrow-history?${params.toString()}`);
+    return res.data || res;
+  }
+
+  // --- Manager APIs ---
+
+  async getSystemStatistics(): Promise<SystemStatistics> {
+    const res = await this.request<any>('/manager/statistics');
+    return res.data || res;
+  }
+
+  async createLibrarian(data: CreateLibrarianRequest): Promise<CreateLibrarianResponse> {
+    const res = await this.request<any>('/manager/librarians/create', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    return res.data || res;
+  }
+
+  async deleteLibrarian(libId: string): Promise<DeleteLibrarianResponse> {
+    const res = await this.request<any>(`/manager/librarians/${libId}`, {
+      method: 'DELETE'
+    });
+    return res.data || res;
+  }
+
+  async listLibrarians(): Promise<LibrarianInfo[]> {
+    const res = await this.request<any>('/manager/librarians');
+    return res.data || res || [];
+  }
+
+  async autoCreateOverduePenalties(): Promise<any> {
+    const res = await this.request<any>('/manager/penalties/auto-create', {
+      method: 'POST'
+    });
     return res.data || res;
   }
 }

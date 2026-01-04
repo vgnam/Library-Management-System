@@ -163,6 +163,13 @@ class ReturnService:
         if not book:
             raise HTTPException(status_code=404, detail="Book copy not found")
 
+        # Lấy giá sách từ BookTitle
+        from app.models.model_book_title import BookTitle
+        book_title = db.session.query(BookTitle).filter(
+            BookTitle.book_title_id == book.book_title_id
+        ).first()
+        book_price = float(book_title.price) if book_title and book_title.price else None
+
         # Calculate fees with proper timezone handling
         return_datetime = datetime.now()
         
@@ -177,7 +184,20 @@ class ReturnService:
         
         days_overdue = (return_datetime.date() - due_date.date()).days if is_overdue else 0
         
-        late_fee = days_overdue * 5000 if is_overdue else 0
+        # Tính tiền phạt với công thức mới
+        if is_overdue:
+            base_fine = days_overdue * 5000
+            if days_overdue > 30:
+                # Muộn > 30 ngày: Tiền phạt thông thường + Giá sách
+                if book_price:
+                    late_fee = base_fine + book_price
+                else:
+                    late_fee = base_fine
+            else:
+                # Muộn <= 30 ngày: 5,000 VND/ngày
+                late_fee = base_fine
+        else:
+            late_fee = 0
 
         # Set actual return date
         detail.real_return_date = return_datetime
@@ -207,7 +227,8 @@ class ReturnService:
             if late_fee > 0:
                 penalty = PenaltyService.create_late_penalty(
                     borrow_detail_id=borrow_detail_id,
-                    days_overdue=days_overdue
+                    days_overdue=days_overdue,
+                    book_price=book_price
                 )
                 penalty_ids.append(penalty["penalty_id"])
 
@@ -332,18 +353,55 @@ class ReturnService:
     @staticmethod
     def get_pending_return_requests() -> list:
         """Get all borrow details with status = pending_return (for librarians)"""
+        from app.models.model_book_title import BookTitle
+        
         details = db.session.query(BorrowSlipDetail).filter(
             BorrowSlipDetail.status == BorrowStatusEnum.pending_return
         ).all()
 
         results = []
+        now = datetime.now(tz=tz_vn)
+        
         for d in details:
             # Get slip, reader, book info for display
             slip = db.session.query(BorrowSlip).filter(BorrowSlip.bs_id == d.borrow_slip_id).first()
             reader = db.session.query(Reader).filter(Reader.reader_id == slip.reader_id).first() if slip else None
             book = db.session.query(Book).filter(Book.book_id == d.book_id).first()
+            
+            # Lấy giá sách
+            book_price = None
+            if book and book.book_title:
+                book_title = db.session.query(BookTitle).filter(
+                    BookTitle.book_title_id == book.book_title_id
+                ).first()
+                if book_title and book_title.price:
+                    book_price = float(book_title.price)
+            
+            # Tính tiền phạt nếu muộn
+            penalty_info = None
+            if d.return_date:
+                due_date = d.return_date
+                if due_date.tzinfo is None:
+                    due_date = tz_vn.localize(due_date)
+                
+                if now > due_date:
+                    days_overdue = (now.date() - due_date.date()).days
+                    
+                    # Tính tiền phạt
+                    base_fine = days_overdue * 5000
+                    if days_overdue > 30 and book_price:
+                        total_fine = base_fine + book_price
+                    else:
+                        total_fine = base_fine
+                    
+                    penalty_info = {
+                        "is_overdue": True,
+                        "days_overdue": days_overdue,
+                        "fine_amount": int(total_fine),
+                        "book_price": book_price
+                    }
 
-            results.append({
+            result_item = {
                 "borrow_detail_id": d.id,
                 "book_title": book.book_title.name if book and book.book_title else "Unknown",
                 "book_id": d.book_id,
@@ -351,7 +409,13 @@ class ReturnService:
                 "reader_id": slip.reader_id if slip else None,
                 "borrow_date": slip.borrow_date.isoformat() if slip and slip.borrow_date else None,
                 "due_date": d.return_date.isoformat() if d.return_date else None
-            })
+            }
+            
+            if penalty_info:
+                result_item["penalty"] = penalty_info
+            
+            results.append(result_item)
+            
         return results
 
     @staticmethod

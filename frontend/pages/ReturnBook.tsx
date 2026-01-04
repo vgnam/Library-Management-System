@@ -273,11 +273,27 @@ export const ReturnBook: React.FC = () => {
                       <span className="bg-gray-100 px-2 py-1 rounded text-gray-600">
                         Borrowed: {formatDate(book.borrow_date)}
                       </span>
-                      <span className={`px-2 py-1 rounded font-medium ${book.is_overdue ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                      <span className={`px-2 py-1 rounded font-bold ${book.is_overdue ? 'bg-red-500 text-white' : 'bg-green-100 text-green-700'}`}>
                         Due: {formatDate(book.due_date)}
                         {book.is_overdue && ` (${book.days_overdue} days overdue)`}
                       </span>
                     </div>
+                    
+                    {/* Hiển thị thông tin tiền phạt */}
+                    {book.penalty && book.penalty.is_overdue && (
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex items-center gap-2 text-red-800 font-bold text-sm mb-1">
+                          <DollarSign className="h-4 w-4" />
+                          Late Fee: {book.penalty.fine_amount.toLocaleString('vi-VN')} VND
+                        </div>
+                        <p className="text-xs text-red-600">
+                          {book.penalty.days_overdue <= 30 
+                            ? `${book.penalty.days_overdue} days × 5,000 VND`
+                            : `(${book.penalty.days_overdue} days × 5,000) + Book price ${book.penalty.book_price ? book.penalty.book_price.toLocaleString('vi-VN') : '0'} VND`
+                          }
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-row sm:flex-col gap-2 min-w-[140px]">

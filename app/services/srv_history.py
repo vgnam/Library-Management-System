@@ -9,6 +9,7 @@ from typing import Optional
 from fastapi_sqlalchemy import db
 from fastapi import HTTPException
 import sqlalchemy as sa
+import pytz
 
 from app.models.model_borrow import BorrowSlip, BorrowSlipDetail, BorrowStatusEnum
 from app.models.model_book import Book
@@ -18,7 +19,7 @@ from app.models.model_penalty import PenaltySlip, PenaltyStatusEnum
 
 class HistoryService:
 
-    
+
     @staticmethod
     def get_borrow_history(
             reader_id: str,
@@ -77,13 +78,21 @@ class HistoryService:
         # ===========================================================
         # BUILD RESPONSE
         # ===========================================================
-        now = datetime.utcnow()
+        tz = pytz.timezone("Asia/Ho_Chi_Minh")
+        now = datetime.now(tz)
+
         history = []
         for r in raw_results:
             book = book_dict.get(r.book_id)
             detail_status = r.detail_status_str.lower()
             due_date = r.detail_due_date
             actual_return = r.actual_return_date
+
+            # Ensure datetime objects are timezone-aware for comparison
+            if due_date and due_date.tzinfo is None:
+                due_date = tz.localize(due_date)
+            if actual_return and actual_return.tzinfo is None:
+                actual_return = tz.localize(actual_return)
 
             display_status = detail_status.capitalize()
             is_overdue = False
@@ -135,9 +144,15 @@ class HistoryService:
                 import re
 
                 if penalty.penalty_type == PenaltyTypeEnum.late and due_date:
+                    # Lấy giá sách từ book_title
+                    book_price = None
+                    if book and book.book_title and book.book_title.price:
+                        book_price = float(book.book_title.price)
+                    
                     fine_calc = PenaltyService.calculate_current_late_fine(
                         due_date=due_date,
-                        return_date=actual_return
+                        return_date=actual_return,
+                        book_price=book_price
                     )
                     fine_amount = fine_calc["fine_amount"]
                     days_overdue_from_penalty = fine_calc["days_overdue"]
@@ -158,7 +173,19 @@ class HistoryService:
             elif is_overdue and days_overdue > 0:
                 # No penalty record exists yet, but book is overdue - show potential penalty
                 from app.services.srv_penalty import FINE_RATES
-                potential_fine = days_overdue * FINE_RATES["late_per_day"]
+                
+                # Lấy giá sách
+                book_price = None
+                if book and book.book_title and book.book_title.price:
+                    book_price = float(book.book_title.price)
+                
+                # Tính tiền phạt theo công thức mới
+                base_fine = days_overdue * FINE_RATES["late_per_day"]
+                if days_overdue > FINE_RATES["late_threshold_days"] and book_price:
+                    potential_fine = base_fine + book_price
+                else:
+                    potential_fine = base_fine
+                
                 penalty_info = {
                     "penalty_id": None,
                     "penalty_type": "Late",
@@ -209,7 +236,8 @@ class HistoryService:
         if not reader:
             raise HTTPException(status_code=404, detail="Reader not found")
 
-        now = datetime.utcnow()
+        tz = pytz.timezone("Asia/Ho_Chi_Minh")
+        now = datetime.now(tz)
 
         # Query books with status Active or PendingReturn (not already marked as Overdue)
         raw_results = db.session.query(
@@ -239,6 +267,11 @@ class HistoryService:
         overdue_books = []
         for r in raw_results:
             due_date = r.detail_due_date
+
+            # Localize due_date if it's naive
+            if due_date and due_date.tzinfo is None:
+                due_date = tz.localize(due_date)
+
             if due_date and now > due_date:
                 book = book_dict.get(r.book_id)
                 days_overdue = (now.date() - due_date.date()).days
@@ -303,10 +336,17 @@ class HistoryService:
         book_dict = {b.book_id: b for b in books}
         has_overdue = any(result.detail_status_str.lower() == 'overdue' for result in raw_results)
 
+        tz = pytz.timezone("Asia/Ho_Chi_Minh")
+        now = datetime.now(tz)
+        
         currently_borrowed_books = []
         for result in raw_results:
             book = book_dict.get(result.book_id)
             detail_status = result.detail_status_str.lower()
+            
+            due_date = result.detail_due_date
+            if due_date and due_date.tzinfo is None:
+                due_date = tz.localize(due_date)
 
             # Determine display status
             if detail_status == "pendingreturn":
@@ -315,8 +355,15 @@ class HistoryService:
                 display_status = "Overdue"
             else:
                 display_status = "Active"
-
-            currently_borrowed_books.append({
+            
+            # Tính is_overdue và days_overdue
+            is_overdue = False
+            days_overdue = 0
+            if due_date and now > due_date:
+                is_overdue = True
+                days_overdue = (now.date() - due_date.date()).days
+            
+            book_item = {
                 "borrow_detail_id": result.id,
                 "borrow_slip_id": result.borrow_slip_id,
                 "book_id": result.book_id,
@@ -324,8 +371,34 @@ class HistoryService:
                 "author": book.book_title.author if book and book.book_title else None,
                 "borrow_date": result.borrow_date.isoformat(),
                 "due_date": result.detail_due_date.isoformat() if result.detail_due_date else None,
-                "status": display_status
-            })
+                "status": display_status,
+                "is_overdue": is_overdue,
+                "days_overdue": days_overdue
+            }
+            
+            # Tính tiền phạt nếu muộn
+            if is_overdue and days_overdue > 0:
+                # Lấy giá sách
+                book_price = None
+                if book and book.book_title and book.book_title.price:
+                    book_price = float(book.book_title.price)
+                
+                # Tính tiền phạt
+                from app.services.srv_penalty import FINE_RATES
+                base_fine = days_overdue * FINE_RATES["late_per_day"]
+                if days_overdue > FINE_RATES["late_threshold_days"] and book_price:
+                    total_fine = base_fine + book_price
+                else:
+                    total_fine = base_fine
+                
+                book_item["penalty"] = {
+                    "is_overdue": True,
+                    "days_overdue": days_overdue,
+                    "fine_amount": int(total_fine),
+                    "book_price": book_price
+                }
+            
+            currently_borrowed_books.append(book_item)
 
         total_borrowed = len(currently_borrowed_books)
         remaining_slots = max_books - total_borrowed

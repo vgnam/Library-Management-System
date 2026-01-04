@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { Button } from '../components/Button';
-import { Check, X, RefreshCw, Book, Calendar, User, Clock, RotateCcw, AlertTriangle, AlertCircle, Package } from 'lucide-react';
+import { Check, X, RefreshCw, Book, Calendar, User, Clock, RotateCcw, AlertTriangle, AlertCircle } from 'lucide-react';
 import { BorrowRequest, BorrowStatus, ReturnRequest } from '../types';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
@@ -133,14 +133,10 @@ export const LibrarianDashboard: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Librarian Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Request Management</h1>
           <p className="text-gray-500 mt-1">Manage borrowing approvals and returns</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={() => navigate('/acquisition')}>
-            <Package className="h-4 w-4 mr-2" />
-            Book Acquisition
-          </Button>
           <Button variant="outline" size="sm" onClick={fetchData} disabled={refreshing}>
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh

@@ -6,6 +6,7 @@ import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { BookSearch } from './pages/BookSearch';
 import { LibrarianDashboard } from './pages/LibrarianDashboard';
+import { ManagerDashboard } from './pages/ManagerDashboard';
 import { BorrowHistory } from './pages/BorrowHistory';
 import { ReturnBook } from './pages/ReturnBook';
 import { ReaderReturnRequest } from './pages/ReaderReturnRequest';
@@ -26,7 +27,10 @@ const ProtectedRoute = ({ children, allowedRoles }: { children?: React.ReactNode
 
   if (allowedRoles && !allowedRoles.includes(userRole)) {
     // Instead of hard redirect to /, redirect based on role to avoid loops
-    if (userRole === UserRole.LIBRARIAN || userRole === UserRole.MANAGER) {
+    if (userRole === UserRole.MANAGER) {
+      return <Navigate to="/manager/dashboard" replace />;
+    }
+    if (userRole === UserRole.LIBRARIAN) {
       return <Navigate to="/librarian/dashboard" replace />;
     }
     return <Navigate to="/" replace />;
@@ -44,7 +48,11 @@ const RootRedirect = () => {
     return <Navigate to="/login" replace />;
   }
 
-  if (userRole === UserRole.LIBRARIAN || userRole === UserRole.MANAGER) {
+  if (userRole === UserRole.MANAGER) {
+    return <Navigate to="/manager/dashboard" replace />;
+  }
+
+  if (userRole === UserRole.LIBRARIAN) {
     return <Navigate to="/librarian/dashboard" replace />;
   }
 
@@ -99,9 +107,16 @@ const App: React.FC = () => {
               </ProtectedRoute>
             } />
 
-            <Route path="/librarian/users" element={
+            <Route path="/user-management" element={
               <ProtectedRoute allowedRoles={[UserRole.LIBRARIAN, UserRole.MANAGER]}>
                 <UserManagement />
+              </ProtectedRoute>
+            } />
+
+            {/* Manager Routes */}
+            <Route path="/manager/dashboard" element={
+              <ProtectedRoute allowedRoles={[UserRole.MANAGER]}>
+                <ManagerDashboard />
               </ProtectedRoute>
             } />
 

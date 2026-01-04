@@ -45,24 +45,24 @@ def get_application() -> FastAPI:
 
 app = get_application()
 if __name__ == '__main__':
-    from fastapi import FastAPI
-    from fastapi.routing import APIRoute
-    @app.on_event("startup")
-    def print_routes():
-        print("\n📌 Registered API Routes:")
-        for route in app.routes:
-            if isinstance(route, APIRoute):
-                methods = ",".join(route.methods)
-                print(f"{methods:10} {route.path}")
+    # from fastapi import FastAPI
+    # from fastapi.routing import APIRoute
+    # @app.on_event("startup")
+    # def print_routes():
+    #     print("\n📌 Registered API Routes:")
+    #     for route in app.routes:
+    #         if isinstance(route, APIRoute):
+    #             methods = ",".join(route.methods)
+    #             print(f"{methods:10} {route.path}")
 
-    from fastapi_sqlalchemy import db
-    from app.services.srv_history import HistoryService
-    from app.services.srv_return import ReturnService
-    reader_id = "6a816e0a-753a-40ee-9648-a3ca7f07c3a3"
-    history_service = HistoryService()
+    # from fastapi_sqlalchemy import db
+    # from app.services.srv_history import HistoryService
+    # from app.services.srv_return import ReturnService
+    # reader_id = "6a816e0a-753a-40ee-9648-a3ca7f07c3a3"
+    # history_service = HistoryService()
 
-    with db():
-        overdue = history_service.get_currently_borrowed_books(reader_id)
-        print("\nRetruned Books:", overdue)
+    # with db():
+    #     overdue = history_service.get_currently_borrowed_books(reader_id)
+    #     print("\nRetruned Books:", overdue)
 
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -380,6 +380,10 @@ class ApiService {
     return this.request<any>('/acquisition/publishers');
   }
 
+  async getCategories(): Promise<any> {
+    return this.request<any>('/acquisition/categories');
+  }
+
   async createBookTitle(data: {
     name: string;
     author: string;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
-import { Publisher, BookItemForAcquisition, AcquisitionSlip } from '../types';
+import { Category, Publisher, BookItemForAcquisition, AcquisitionSlip } from '../types';
 import { Button } from '../components/Button';
 
 export const BookAcquisition: React.FC = () => {
@@ -9,6 +9,7 @@ export const BookAcquisition: React.FC = () => {
   
   // State management
   const [publishers, setPublishers] = useState<Publisher[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -18,7 +19,7 @@ export const BookAcquisition: React.FC = () => {
   const [newBookTitle, setNewBookTitle] = useState({
     name: '',
     author: '',
-    category: '',
+    category_id: '',
     publisher_id: ''
   });
   
@@ -54,6 +55,19 @@ export const BookAcquisition: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await api.getCategories();
+      setCategories(response.data || []);
+    } catch (err: any) {
+      setError('Failed to load categories: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
   const handleSearchBooks = async () => {
     if (!searchKeyword.trim()) return;
     
@@ -76,7 +90,7 @@ export const BookAcquisition: React.FC = () => {
   };
 
   const handleCreateNewBookTitle = async () => {
-    if (!newBookTitle.name || !newBookTitle.author || !newBookTitle.category || !newBookTitle.publisher_id) {
+    if (!newBookTitle.name || !newBookTitle.author || !newBookTitle.category_id || !newBookTitle.publisher_id) {
       setError('Please fill all book title fields');
       return;
     }
@@ -222,7 +236,7 @@ export const BookAcquisition: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">📦 Book Acquisition</h1>
+        <h1 className="text-3xl font-bold">Book Acquisition</h1>
         <Button
           onClick={() => {
             setShowHistory(!showHistory);
@@ -250,7 +264,7 @@ export const BookAcquisition: React.FC = () => {
         <div className="space-y-6">
           {/* Search Existing Books */}
           <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">🔍 Search Existing Books</h2>
+            <h2 className="text-xl font-semibold mb-4">Search Existing Books</h2>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -273,7 +287,7 @@ export const BookAcquisition: React.FC = () => {
                   >
                     <div className="font-semibold">{book.name}</div>
                     <div className="text-sm text-gray-600">
-                      by {book.author} | {book.publisher} | Available: {book.available_books}
+                      by {book.author} | {book.publisher} | Available: {book.available_books} | {book.category}
                     </div>
                   </div>
                 ))}
@@ -284,7 +298,7 @@ export const BookAcquisition: React.FC = () => {
           {/* Create New Book Title */}
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">➕ Create New Book Title</h2>
+              <h2 className="text-xl font-semibold">Create New Book Title</h2>
               <Button
                 onClick={() => setShowNewBookForm(!showNewBookForm)}
                 variant="secondary"
@@ -309,13 +323,18 @@ export const BookAcquisition: React.FC = () => {
                   value={newBookTitle.author}
                   onChange={(e) => setNewBookTitle({ ...newBookTitle, author: e.target.value })}
                 />
-                <input
-                  type="text"
+                <select
                   className="border rounded px-3 py-2"
-                  placeholder="Category *"
-                  value={newBookTitle.category}
-                  onChange={(e) => setNewBookTitle({ ...newBookTitle, category: e.target.value })}
-                />
+                  value={newBookTitle.category_id}
+                  onChange={(e) => setNewBookTitle({ ...newBookTitle, category_id: e.target.value })}
+                >
+                  <option value="">Select Category *</option>
+                  {categories.map((cat) => (
+                    <option key={cat.cat_id} value={cat.cat_id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
                 <select
                   className="border rounded px-3 py-2"
                   value={newBookTitle.publisher_id}
@@ -339,7 +358,7 @@ export const BookAcquisition: React.FC = () => {
 
           {/* Add Item to Acquisition */}
           <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">📝 Add Item to Acquisition</h2>
+            <h2 className="text-xl font-semibold mb-4">Add Item to Acquisition</h2>
             <div className="grid grid-cols-4 gap-4">
               <div className="col-span-2">
                 <label className="block text-sm font-medium mb-1">Selected Book</label>

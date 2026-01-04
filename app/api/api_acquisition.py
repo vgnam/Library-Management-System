@@ -32,7 +32,7 @@ class CreateBookTitleModel(BaseModel):
     """Model for creating new book title"""
     name: str = Field(..., description="Book title name")
     author: str = Field(..., description="Author name")
-    category: str = Field(..., description="Book category")
+    category_id: str = Field(..., description="Category ID")
     publisher_id: str = Field(..., description="Publisher ID")
 
 
@@ -143,6 +143,24 @@ def get_publishers(
         data=result
     )
 
+@router.get("/categories", summary="Get All Categories")
+def get_categories(
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
+) -> DataResponse:
+    """
+    Get all publishers for dropdown selection.
+    Only accessible by librarians.
+    """
+    auth_service.get_current_user(token)
+    
+    result = acquisition_service.get_categories()
+    
+    return DataResponse(
+        success=True,
+        message="Publishers retrieved successfully",
+        data=result
+    )
 
 @router.post("/book-title/create", summary="Create New Book Title")
 def create_book_title(
@@ -160,7 +178,7 @@ def create_book_title(
     result = acquisition_service.create_book_title(
         name=data.name,
         author=data.author,
-        category=data.category,
+        category_id=data.category_id,
         publisher_id=data.publisher_id
     )
     

@@ -261,7 +261,6 @@ export const UserManagement: React.FC = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-          <Shield className="w-8 h-8 text-blue-600" />
           Reader Management
         </h1>
         <p className="text-gray-600">Search readers, view information, borrowed books, and manage bans</p>
@@ -626,6 +625,9 @@ export const UserManagement: React.FC = () => {
                                     </div>
                                     <div>
                                       <span className="text-gray-600">Publisher:</span> {borrow.publisher || 'N/A'}
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-600">Category:</span> {borrow.category || 'N/A'}
                                     </div>
                                     <div>
                                       <span className="text-gray-600">Borrowed:</span> {new Date(borrow.borrow_date).toLocaleDateString()}

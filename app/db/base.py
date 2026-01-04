@@ -23,7 +23,7 @@ password = "chinchin123@"
 # params = quote_plus(connection_string)
 # DATABASE_URL = f"mssql+pyodbc:///?odbc_connect={params}"
 
-# 🔹 Hoặc Cách 2: Dùng format đơn giản (nếu password không có ký tự đặc biệt)
+# # 🔹 Hoặc Cách 2: Dùng format đơn giản (nếu password không có ký tự đặc biệt)
 DATABASE_URL = (
     f"mssql+pyodbc://{username}:{password}@{server_name}:1433/{database_name}"
     f"?driver=ODBC+Driver+17+for+SQL+Server"

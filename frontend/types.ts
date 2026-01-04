@@ -238,6 +238,11 @@ export interface Publisher {
   address?: string;
 }
 
+export interface Category {
+  cat_id: string;
+  name: string;
+}
+
 export interface BookItemForAcquisition {
   book_title_id: string;
   quantity: number;

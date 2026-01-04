@@ -12,6 +12,7 @@ const calculateRelevanceScore = (book: BookSearchResult, keyword: string): numbe
 
   const title = (book.name || '').toLowerCase();
   const author = (book.author || '').toLowerCase();
+  const category = (book.category || '').toLowerCase();
   const publisher = (book.publisher || '').toLowerCase();
 
   let score = 0;
@@ -326,7 +327,7 @@ export const BookSearch: React.FC = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Search books by title, author, publisher..."
+                placeholder="Search books by title, author, category, publisher..."
                 value={keyword}
                 onChange={handleInputChange}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -465,11 +466,6 @@ export const BookSearch: React.FC = () => {
                   isSelected ? 'border-blue-500' : 'border-transparent'
                 }`}
               >
-                {book.category && (
-                  <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full mb-3">
-                    {book.category}
-                  </span>
-                )}
 
                 <h3 className="font-bold text-lg text-gray-900 mb-2 line-clamp-2 h-14">
                   {book.name}
@@ -477,6 +473,9 @@ export const BookSearch: React.FC = () => {
 
                 <p className="text-sm text-gray-600 mb-1">
                   <span className="font-medium">By:</span> {book.author}
+                </p>
+                <p className="text-sm text-gray-600 mb-3">
+                  <span className="font-medium">Category:</span> {book.category}
                 </p>
                 <p className="text-sm text-gray-600 mb-3">
                   <span className="font-medium">Publisher:</span> {book.publisher}

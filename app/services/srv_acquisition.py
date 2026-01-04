@@ -12,6 +12,7 @@ from app.models.model_librarian import Librarian
 from app.models.model_book_title import BookTitle
 from app.models.model_book import Book
 from app.models.model_publisher import Publisher
+from app.models.model_categories import Category
 
 
 class AcquisitionService:
@@ -249,12 +250,25 @@ class AcquisitionService:
             }
             for p in publishers
         ]
+    
+    @staticmethod
+    def get_categories() -> List[dict]:
+        """Get all categories for dropdown selection"""
+        categories = db.session.query(Category).all()
+        
+        return [
+            {
+                "cat_id": c.cat_id,
+                "name": c.name
+            }
+            for c in categories
+        ]
 
     @staticmethod
     def create_book_title(
         name: str,
         author: str,
-        category: str,
+        category_id: str,
         publisher_id: str
     ) -> dict:
         """
@@ -280,7 +294,7 @@ class AcquisitionService:
                 "book_title_id": existing.book_title_id,
                 "name": existing.name,
                 "author": existing.author,
-                "category": existing.category,
+                "category_id": existing.category_id,
                 "publisher_id": existing.publisher_id,
                 "exists": True
             }
@@ -293,13 +307,20 @@ class AcquisitionService:
         if not publisher:
             raise HTTPException(status_code=404, detail="Publisher not found")
         
+        category = db.session.query(Category).filter(
+            Category.cat_id == category_id
+        ).first()
+        
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+        
         # Create new book title
         book_title_id = f"BT{datetime.utcnow().strftime('%Y%m%d%H%M%S')}{str(uuid.uuid4())[:4]}"
         book_title = BookTitle(
             book_title_id=book_title_id,
             name=name,
             author=author,
-            category=category,
+            category_id=category_id,
             publisher_id=publisher_id,
             total_quantity=0,
             available=0
@@ -312,7 +333,7 @@ class AcquisitionService:
             "book_title_id": book_title.book_title_id,
             "name": book_title.name,
             "author": book_title.author,
-            "category": book_title.category,
+            "category": book_title.category_id,
             "publisher_id": book_title.publisher_id,
             "exists": False
         }

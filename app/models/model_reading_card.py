@@ -26,5 +26,6 @@ class ReadingCard(Base):
     register_date = Column(Date, nullable=False)
     register_office = Column(String(100), nullable=False)
     status = Column(Enum(CardStatusEnum), default=CardStatusEnum.active)
+    infraction_count = Column(Integer, default=0)
 
     reader = relationship("Reader", back_populates="reading_card")

@@ -178,42 +178,6 @@ class ReturnService:
         days_overdue = (return_datetime.date() - due_date.date()).days if is_overdue else 0
         
         late_fee = days_overdue * 5000 if is_overdue else 0
-        
-        # ========================================
-        # INFRACTION TRACKING & CARD BLOCKING
-        # ========================================
-        reader = db.session.query(Reader).filter(Reader.reader_id == slip.reader_id).first()
-        if not reader:
-            raise HTTPException(status_code=404, detail="Reader not found")
-        
-        reading_card = db.session.query(ReadingCard).filter(
-            ReadingCard.reader_id == reader.reader_id
-        ).first()
-        
-        infraction_added = False
-        card_blocked = False
-        block_reason = None
-        unblock_instructions = None
-        
-        # Rule 3: 30+ days late = immediate permanent block
-        if days_overdue >= 30:
-            if reading_card:
-                reading_card.status = CardStatusEnum.blocked
-            card_blocked = True
-            block_reason = f"Returned book {days_overdue} days late (≥30 days)"
-            unblock_instructions = "⚠️ CARD PERMANENTLY BLOCKED. Reader must pay ALL outstanding fines and contact library management for review. Card will NOT be automatically unblocked."
-        # Rule 1: >5 days late = add infraction
-        elif days_overdue > 5:
-            reader.infraction_count += 1
-            infraction_added = True
-            
-            # Rule 2: 3 infractions = permanent block
-            if reader.infraction_count >= 3:
-                if reading_card:
-                    reading_card.status = CardStatusEnum.blocked
-                card_blocked = True
-                block_reason = f"Accumulated {reader.infraction_count} infractions"
-                unblock_instructions = "⚠️ CARD PERMANENTLY BLOCKED (3 infractions). Reader must pay ALL outstanding fines and contact library management for review. Card will NOT be automatically unblocked."
 
         # Set actual return date
         detail.real_return_date = return_datetime
@@ -264,6 +228,7 @@ class ReturnService:
             print(f"Warning: Failed to create penalty: {e}")
 
         # Decrease reader's total_borrowed count for this returned book
+        reader = db.session.query(Reader).filter(Reader.reader_id == slip.reader_id).first()
         if reader:
             reader.total_borrowed = max(0, reader.total_borrowed - 1)
 
@@ -280,6 +245,9 @@ class ReturnService:
         if all_returned:
             slip.status = BorrowStatusEnum.returned
 
+        reading_card = db.session.query(ReadingCard).filter(
+            ReadingCard.reader_id == slip.reader_id
+        ).first()
         # AUTO-UNSUSPEND: Check if reader has no more overdue books and unsuspend if suspended
         if reading_card and reading_card.status == CardStatusEnum.suspended:
             # Check for remaining overdue books
@@ -319,11 +287,6 @@ class ReturnService:
             "total_fee": total_fee,
             "status": detail.status.value,
             "borrow_slip_status": slip.status.value,
-            "infraction_added": infraction_added,
-            "total_infractions": reader.infraction_count if reader else 0,
-            "card_blocked": card_blocked,
-            "block_reason": block_reason,
-            "unblock_instructions": unblock_instructions,
             "card_unsuspended": card_unsuspended
         }
 
@@ -455,7 +418,7 @@ class ReturnService:
             "full_name": reader.user.full_name if reader.user else "Unknown",
             "card_type": card_type,
             "card_status": reading_card.status.value if reading_card.status else "Unknown",
-            "infraction_count": reader.infraction_count,
+            "infraction_count": reading_card.infraction_count if reading_card else 0,
             "borrow_limit": max_books,
             "current_borrowed_count": len(active_loans),
             "available_slots": max(0, max_books - len(active_loans)),

@@ -11,6 +11,7 @@ from app.schemas.sche_base import DataResponse
 from app.models.model_book_title import BookTitle
 from app.models.model_book import Book
 from app.models.model_borrow import BorrowSlip, BorrowSlipDetail, BorrowStatusEnum
+from app.core.dependencies import check_reader_infractions, check_all_readers_infractions
 
 
 router = APIRouter(prefix="/books", tags=["Books"])
@@ -24,7 +25,8 @@ borrow_service = BorrowService()
 @router.get("/borrow-requests", summary="Get Borrow Requests List")
 def get_borrow_requests(
         status: Optional[BorrowStatusEnum] = Query(None),
-        token: str = Depends(auth_service.librarian_oauth2)
+        token: str = Depends(auth_service.librarian_oauth2),
+        infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> DataResponse:
     auth_service.get_current_user(token)
 
@@ -40,7 +42,8 @@ def get_borrow_requests(
 def create_borrow_request(
         # Sử dụng embed=True để nhận JSON: {"book_title_ids": ["id1", "id2"]}
         book_title_ids: List[str] = Body(..., embed=True),
-        token: str = Depends(auth_service.reader_oauth2)
+        token: str = Depends(auth_service.reader_oauth2),
+        infraction_check: dict = Depends(lambda token=Depends(auth_service.reader_oauth2): check_reader_infractions(token))
 ) -> DataResponse:
     user = auth_service.get_current_user(token)
     reader = db.session.query(Reader).filter(Reader.user_id == user.user_id).first()
@@ -62,7 +65,8 @@ def create_borrow_request(
 @router.put("/borrow-request/{borrow_slip_id}/approve", summary="Approve Borrow Request")
 def approve_borrow_request(
         borrow_slip_id: str,
-        token: str = Depends(auth_service.librarian_oauth2)
+        token: str = Depends(auth_service.librarian_oauth2),
+        infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> DataResponse:
     user = auth_service.get_current_user(token)
     librarian = db.session.query(Librarian).filter(Librarian.user_id == user.user_id).first()
@@ -84,7 +88,8 @@ def approve_borrow_request(
 @router.put("/borrow-request/{borrow_slip_id}/reject", summary="Reject Borrow Request")
 def reject_borrow_request(
         borrow_slip_id: str,
-        token: str = Depends(auth_service.librarian_oauth2)
+        token: str = Depends(auth_service.librarian_oauth2),
+        infraction_check: dict = Depends(check_all_readers_infractions)
 ) -> DataResponse:
     user = auth_service.get_current_user(token)
     librarian = db.session.query(Librarian).filter(Librarian.user_id == user.user_id).first()
@@ -105,7 +110,8 @@ def reject_borrow_request(
 @router.delete("/borrow-request/{borrow_slip_id}/cancel", summary="Cancel Borrow Request")
 def cancel_borrow_request(
         borrow_slip_id: str,
-        token: str = Depends(auth_service.reader_oauth2)
+        token: str = Depends(auth_service.reader_oauth2),
+        infraction_check: dict = Depends(lambda token=Depends(auth_service.reader_oauth2): check_reader_infractions(token))
 ) -> DataResponse:
     user = auth_service.get_current_user(token)
     reader = db.session.query(Reader).filter(Reader.user_id == user.user_id).first()

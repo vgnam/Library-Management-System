@@ -62,7 +62,7 @@ if __name__ == '__main__':
     # history_service = HistoryService()
     #
     # with db():
-    #     overdue = history_service.get_returned_books(reader_id)
+    #     overdue = history_service.get_currently_borrowed_books(reader_id)
     #     print("\nRetruned Books:", overdue)
 
     uvicorn.run(app, host="0.0.0.0", port=8000)

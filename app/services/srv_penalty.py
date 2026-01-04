@@ -9,7 +9,7 @@ import re
 import pytz
 
 from app.models.model_penalty import PenaltySlip, PenaltyTypeEnum, PenaltyStatusEnum
-from app.models.model_borrow import BorrowSlipDetail, BorrowSlip
+from app.models.model_borrow import BorrowSlipDetail, BorrowSlip, BorrowStatusEnum
 from app.models.model_book import Book
 
 tz_vn = pytz.timezone("Asia/Ho_Chi_Minh")
@@ -538,3 +538,98 @@ class PenaltyService:
         }
 
         return stats
+
+    @staticmethod
+    def auto_create_overdue_penalties() -> dict:
+        """
+        Automatically create penalty records for all overdue books that don't have penalties yet.
+        This should be called periodically (e.g., daily via cron job) or manually by manager/librarian.
+        
+        Returns:
+            Dictionary with creation statistics
+        """
+        now = datetime.now(tz=tz_vn)
+        
+        # Find all overdue borrow details without penalty records
+        overdue_details = db.session.query(BorrowSlipDetail).filter(
+            BorrowSlipDetail.status.in_([
+                BorrowStatusEnum.active,
+                BorrowStatusEnum.overdue,
+                BorrowStatusEnum.pending_return
+            ]),
+            BorrowSlipDetail.real_return_date.is_(None),  # Not returned yet
+            BorrowSlipDetail.return_date < now  # Past due date
+        ).all()
+        
+        created_count = 0
+        updated_count = 0
+        skipped_count = 0
+        errors = []
+        
+        for detail in overdue_details:
+            try:
+                # Make due date timezone-aware if needed
+                due_date = detail.return_date
+                if due_date.tzinfo is None:
+                    due_date = tz_vn.localize(due_date)
+                
+                # Calculate days overdue
+                days_overdue = (now.date() - due_date.date()).days
+                
+                if days_overdue <= 0:
+                    skipped_count += 1
+                    continue
+                
+                # Check if late penalty already exists
+                existing_penalty = db.session.query(PenaltySlip).filter(
+                    PenaltySlip.borrow_detail_id == detail.id,
+                    PenaltySlip.penalty_type == PenaltyTypeEnum.late
+                ).first()
+                
+                if existing_penalty:
+                    # Update existing penalty with current days overdue
+                    fine_amount = days_overdue * FINE_RATES["late_per_day"]
+                    existing_penalty.description = f"Late return: {days_overdue} days overdue. Fine: {int(fine_amount):,} VND"
+                    existing_penalty.status = PenaltyStatusEnum.pending
+                    updated_count += 1
+                else:
+                    # Create new penalty
+                    fine_amount = days_overdue * FINE_RATES["late_per_day"]
+                    penalty = PenaltySlip(
+                        penalty_id=f"PEN-{uuid.uuid4().hex[:8].upper()}",
+                        borrow_detail_id=detail.id,
+                        penalty_type=PenaltyTypeEnum.late,
+                        description=f"Late return: {days_overdue} days overdue. Fine: {int(fine_amount):,} VND (Auto-created)",
+                        status=PenaltyStatusEnum.pending
+                    )
+                    db.session.add(penalty)
+                    created_count += 1
+                    
+                    # Update borrow detail status to overdue if not already
+                    if detail.status != BorrowStatusEnum.overdue:
+                        detail.status = BorrowStatusEnum.overdue
+                
+            except Exception as e:
+                errors.append({
+                    "borrow_detail_id": detail.id,
+                    "error": str(e)
+                })
+        
+        # Commit all changes
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to commit penalty creation: {str(e)}"
+            )
+        
+        return {
+            "message": "Auto-creation of overdue penalties completed",
+            "created": created_count,
+            "updated": updated_count,
+            "skipped": skipped_count,
+            "errors": errors,
+            "total_processed": len(overdue_details)
+        }

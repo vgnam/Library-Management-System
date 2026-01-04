@@ -392,3 +392,86 @@ export interface UserBorrowHistoryResponse {
   total_pages: number;
   history: UserBorrowHistoryRecord[];
 }
+
+// --- Manager Types ---
+
+export interface SystemStatistics {
+  cards: {
+    total_issued: number;
+    active: number;
+    suspended: number;
+    blocked: number;
+  };
+  users: {
+    total_readers: number;
+    total_librarians: number;
+  };
+  borrowing: {
+    total_borrows: number;
+    active_borrows: number;
+    overdue_borrows: number;
+    returned_borrows: number;
+    return_rate: number;
+  };
+  infractions: {
+    total_infractions: number;
+    readers_with_infractions: number;
+    average_per_reader: number;
+  };
+  penalties: {
+    total_penalties: number;
+    unpaid_penalties: number;
+    total_amount: number;
+    unpaid_amount: number;
+  };
+  trends: {
+    recent_borrows_30_days: number;
+    avg_borrows_per_day: number;
+  };
+}
+
+export interface LibrarianInfo {
+  lib_id: string;
+  user_id: string;
+  username: string;
+  full_name: string;
+  email: string;
+  phone_number?: string;
+  years_of_experience: number;
+  total_borrow_slips: number;
+}
+
+export interface CreateLibrarianRequest {
+  username: string;
+  password: string;
+  full_name: string;
+  email: string;
+  phone_number?: string;
+  years_of_experience?: number;
+}
+
+export interface CreateLibrarianResponse {
+  success: boolean;
+  message: string;
+  librarian: {
+    lib_id: string;
+    user_id: string;
+    username: string;
+    full_name: string;
+    email: string;
+    phone_number?: string;
+    years_of_experience: number;
+  };
+}
+
+export interface DeleteLibrarianResponse {
+  success: boolean;
+  message: string;
+  deleted_librarian: {
+    lib_id: string;
+    username: string;
+    full_name: string;
+    had_records: boolean;
+  };
+}
+

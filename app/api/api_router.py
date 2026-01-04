@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api import api_auth, api_search, api_borrow, api_return, api_history, api_acquisition, api_librarian_management
+from app.api import api_auth, api_search, api_borrow, api_return, api_history, api_acquisition, api_librarian_management, api_manager
 
 router = APIRouter()
 router.include_router(api_auth.router)
@@ -9,3 +9,4 @@ router.include_router(api_return.router)
 router.include_router(api_history.router)
 router.include_router(api_acquisition.router)
 router.include_router(api_librarian_management.router)
+router.include_router(api_manager.router)

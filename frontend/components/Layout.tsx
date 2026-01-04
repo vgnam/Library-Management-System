@@ -59,11 +59,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <NavLink to="/return-request">Return Books</NavLink>
                   </>
                 )}
-                {token && (userRole === UserRole.LIBRARIAN || userRole === UserRole.MANAGER) && (
+                {token && userRole === UserRole.LIBRARIAN && (
                    <>
-                    <NavLink to="/librarian/dashboard">Dashboard</NavLink>
-                    <NavLink to="/librarian/users">User Management</NavLink>
-                    <NavLink to="/acquisition">Acquisition</NavLink>
+                    <NavLink to="/librarian/dashboard">Request Management</NavLink>
+                    <NavLink to="/user-management">User Management</NavLink>
+                    <NavLink to="/acquisition">Book Acquisition</NavLink>
+                   </>
+                )}
+                {token && userRole === UserRole.MANAGER && (
+                   <>
+                    <NavLink to="/manager/dashboard">Manager Dashboard</NavLink>
                    </>
                 )}
               </div>
@@ -110,11 +115,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <Link to="/return-request" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Return Books</Link>
                   </>
                 )}
-                {token && (userRole === UserRole.LIBRARIAN || userRole === UserRole.MANAGER) && (
+                {token && userRole === UserRole.LIBRARIAN && (
                   <>
-                   <Link to="/librarian/dashboard" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Dashboard</Link>
-                   <Link to="/librarian/users" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">User Management</Link>
-                   <Link to="/acquisition" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Acquisition</Link>
+                   <Link to="/librarian/dashboard" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Request Management</Link>
+                   <Link to="/user-management" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">User Management</Link>
+                   <Link to="/acquisition" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Book Acquisition</Link>
+                  </>
+                )}
+                {token && userRole === UserRole.MANAGER && (
+                  <>
+                   <Link to="/manager/dashboard" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Manager Dashboard</Link>
                   </>
                 )}
                 {!token && (

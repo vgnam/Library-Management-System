@@ -104,6 +104,15 @@ class AuthService:
             user.last_login = datetime.utcnow()
             db.session.commit()
 
+            # Tự động update penalty descriptions khi manager hoặc librarian đăng nhập
+            if role.lower() in ['manager', 'librarian']:
+                try:
+                    from app.services.srv_penalty import PenaltyService
+                    PenaltyService.update_all_penalty_descriptions()
+                except Exception as e:
+                    # Log error nhưng không fail login
+                    print(f"Warning: Failed to update penalty descriptions: {e}")
+
             # Generate token
             token_data = {
                 "user_id": user.user_id,

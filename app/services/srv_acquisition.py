@@ -103,6 +103,9 @@ class AcquisitionService:
             book_title.total_quantity += quantity
             book_title.available += quantity
             
+            # Cập nhật giá sách từ lần nhập mới nhất
+            book_title.price = price
+            
             total_items += quantity
             total_amount += quantity * price
             

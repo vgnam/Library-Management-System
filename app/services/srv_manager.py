@@ -117,17 +117,34 @@ class ManagerService:
                     processed_detail_ids.add(detail.id)
                     
                     if detail.return_date:
+                        # Get book price
+                        from app.models.model_book import Book
+                        book = db.session.query(Book).filter(Book.book_id == detail.book_id).first()
+                        book_price = None
+                        if book and book.book_title and book.book_title.price:
+                            book_price = float(book.book_title.price)
+                        
                         # Calculate days overdue
                         if detail.real_return_date:
                             # Book was returned
                             if detail.real_return_date > detail.return_date:
                                 days_overdue = (detail.real_return_date.date() - detail.return_date.date()).days
-                                penalty_amount = days_overdue * LATE_FEE_PER_DAY
+                                # Áp dụng công thức mới
+                                base_fine = days_overdue * LATE_FEE_PER_DAY
+                                if days_overdue > 30 and book_price:
+                                    penalty_amount = base_fine + book_price
+                                else:
+                                    penalty_amount = base_fine
                         else:
                             # Book is still out and overdue
                             if now > detail.return_date:
                                 days_overdue = (now.date() - detail.return_date.date()).days
-                                penalty_amount = days_overdue * LATE_FEE_PER_DAY
+                                # Áp dụng công thức mới
+                                base_fine = days_overdue * LATE_FEE_PER_DAY
+                                if days_overdue > 30 and book_price:
+                                    penalty_amount = base_fine + book_price
+                                else:
+                                    penalty_amount = base_fine
                     
                     total_penalty_amount += penalty_amount
                     
@@ -156,7 +173,20 @@ class ManagerService:
             
             for detail in overdue_without_penalty:
                 days_overdue = (now.date() - detail.return_date.date()).days
-                penalty_amount = days_overdue * LATE_FEE_PER_DAY
+                
+                # Get book price
+                from app.models.model_book import Book
+                book = db.session.query(Book).filter(Book.book_id == detail.book_id).first()
+                book_price = None
+                if book and book.book_title and book.book_title.price:
+                    book_price = float(book.book_title.price)
+                
+                # Áp dụng công thức mới
+                base_fine = days_overdue * LATE_FEE_PER_DAY
+                if days_overdue > 30 and book_price:
+                    penalty_amount = base_fine + book_price
+                else:
+                    penalty_amount = base_fine
                 
                 # These are implicit unpaid penalties
                 unpaid_penalty_amount += penalty_amount

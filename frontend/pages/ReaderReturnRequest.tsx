@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { CurrentlyBorrowedBook, BorrowStatus } from '../types';
 import { Button } from '../components/Button';
-import { BookOpen, Clock, RotateCcw, AlertCircle, CheckCircle, Calendar, Hourglass } from 'lucide-react';
+import { BookOpen, Clock, RotateCcw, AlertCircle, CheckCircle, Calendar, Hourglass, DollarSign } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
@@ -164,6 +164,16 @@ export const ReaderReturnRequest: React.FC = () => {
                         {book.is_overdue && ` (${book.days_overdue} days late)`}
                       </span>
                     </div>
+                    
+                    {/* Hiển thị tiền phạt */}
+                    {book.penalty && book.penalty.is_overdue && (
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex items-center gap-2 text-red-800 font-bold text-sm">
+                          <DollarSign className="h-4 w-4" />
+                          Late Fee: {book.penalty.fine_amount.toLocaleString('vi-VN')} VND
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

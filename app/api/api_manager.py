@@ -155,3 +155,32 @@ def auto_create_overdue_penalties(
     """
     verify_manager(token)
     return PenaltyService.auto_create_overdue_penalties()
+
+
+@router.post("/penalties/update-descriptions", summary="Update All Penalty Descriptions")
+def update_penalty_descriptions(
+    token: str = Depends(auth_service.manager_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
+) -> Dict:
+    """
+    Update descriptions for all existing late penalties with new formula.
+    
+    **Manager Only**
+    
+    New Formula:
+    - ≤ 30 days: Days × 5,000 VND
+    - > 30 days: (Days × 5,000 VND) + Book Price
+    
+    This will:
+    - Recalculate all late penalty amounts based on current formula
+    - Update description field with detailed breakdown
+    - Preserve penalty status (pending/paid/cancelled)
+    
+    Returns:
+    - Total penalties processed
+    - Number updated
+    - Number skipped
+    - Any errors encountered
+    """
+    verify_manager(token)
+    return PenaltyService.update_all_penalty_descriptions()

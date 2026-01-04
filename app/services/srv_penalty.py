@@ -16,7 +16,8 @@ tz_vn = pytz.timezone("Asia/Ho_Chi_Minh")
 
 # Fine configuration
 FINE_RATES = {
-    "late_per_day": 5000,  # 5,000 VND per day for late returns
+    "late_per_day": 5000,  # 5,000 VND per day for late returns (dưới 30 ngày)
+    "late_threshold_days": 30,  # Ngưỡng 30 ngày để áp dụng công thức mới
     "damage_min": 50000,  # Minimum 50,000 VND for damage
     "damage_max": 500000,  # Maximum 500,000 VND for damage
     "lost_multiplier": 1.5,  # 150% of book price for lost books (aligned with srv_return.py)
@@ -38,14 +39,17 @@ class PenaltyService:
         return 0.0
 
     @staticmethod
-    def calculate_current_late_fine(due_date: datetime, return_date: datetime = None) -> dict:
+    def calculate_current_late_fine(due_date: datetime, return_date: datetime = None, book_price: float = None) -> dict:
         """
         Calculate real-time late fine based on current date or return date.
-        This provides dynamic penalty calculation without needing to update the database.
+        Công thức:
+        - Nếu muộn <= 30 ngày: 5,000 VND/ngày
+        - Nếu muộn > 30 ngày: (Số ngày * 5,000) + Giá sách
 
         Args:
             due_date: When the book should have been returned
             return_date: When book was actually returned (None if still borrowed)
+            book_price: Price of the book (needed for overdue > 30 days)
 
         Returns:
             Dictionary with days_overdue and fine_amount
@@ -64,17 +68,32 @@ class PenaltyService:
         # Calculate days overdue
         if comparison_date > due_date:
             days_overdue = (comparison_date.date() - due_date.date()).days
-            fine_amount = days_overdue * FINE_RATES["late_per_day"]
+            
+            # Áp dụng công thức mới
+            if days_overdue > FINE_RATES["late_threshold_days"]:
+                # Muộn > 30 ngày: Tiền phạt thông thường + Giá sách
+                base_fine = days_overdue * FINE_RATES["late_per_day"]
+                if book_price:
+                    fine_amount = base_fine + float(book_price)
+                else:
+                    # Nếu không có giá, chỉ tính phạt thông thường
+                    fine_amount = base_fine
+            else:
+                # Muộn <= 30 ngày: 5,000 VND/ngày
+                fine_amount = days_overdue * FINE_RATES["late_per_day"]
+            
             return {
                 "days_overdue": days_overdue,
                 "fine_amount": int(fine_amount),
-                "is_overdue": True
+                "is_overdue": True,
+                "book_price": float(book_price) if book_price else None
             }
         else:
             return {
                 "days_overdue": 0,
                 "fine_amount": 0,
-                "is_overdue": False
+                "is_overdue": False,
+                "book_price": float(book_price) if book_price else None
             }
 
     @staticmethod
@@ -96,6 +115,12 @@ class PenaltyService:
         
         if not detail:
             raise HTTPException(status_code=404, detail="Borrow detail not found")
+        
+        # Lấy giá sách
+        book_price = None
+        book = db.session.query(Book).filter(Book.book_id == detail.book_id).first()
+        if book and book.book_title:
+            book_price = float(book.book_title.price) if book.book_title.price else None
         
         # Check for existing penalties
         penalties = db.session.query(PenaltySlip).filter(
@@ -119,7 +144,8 @@ class PenaltyService:
             if penalty.penalty_type == PenaltyTypeEnum.late and detail.return_date:
                 fine_calc = PenaltyService.calculate_current_late_fine(
                     due_date=detail.return_date,
-                    return_date=detail.real_return_date
+                    return_date=detail.real_return_date,
+                    book_price=book_price
                 )
                 penalty_info["fine_amount"] = fine_calc["fine_amount"]
                 penalty_info["days_overdue"] = fine_calc["days_overdue"]
@@ -134,7 +160,8 @@ class PenaltyService:
         # If no penalty exists but book is overdue, calculate potential penalty
         if not penalties and detail.return_date and detail.real_return_date is None:
             fine_calc = PenaltyService.calculate_current_late_fine(
-                due_date=detail.return_date
+                due_date=detail.return_date,
+                book_price=book_price
             )
             if fine_calc["is_overdue"]:
                 result["potential_penalty"] = {
@@ -148,19 +175,36 @@ class PenaltyService:
         return result
 
     @staticmethod
-    def create_late_penalty(borrow_detail_id: str, days_overdue: int) -> dict:
+    def create_late_penalty(borrow_detail_id: str, days_overdue: int, book_price: float = None) -> dict:
         """
         Create penalty for late return
+        Công thức:
+        - Nếu muộn <= 30 ngày: 5,000 VND/ngày
+        - Nếu muộn > 30 ngày: (Số ngày * 5,000) + Giá sách
 
         Args:
             borrow_detail_id: ID of the borrow detail
             days_overdue: Number of days overdue
+            book_price: Price of the book (for overdue > 30 days)
 
         Returns:
             Dictionary with penalty information
         """
-        # Calculate fine amount
-        fine_amount = days_overdue * FINE_RATES["late_per_day"]
+        # Calculate fine amount với công thức mới
+        base_fine = days_overdue * FINE_RATES["late_per_day"]
+        
+        if days_overdue > FINE_RATES["late_threshold_days"]:
+            # Muộn > 30 ngày: Tiền phạt thông thường + Giá sách
+            if book_price:
+                fine_amount = base_fine + float(book_price)
+                description = f"Late return: {days_overdue} days overdue (>{FINE_RATES['late_threshold_days']} days). Fine: {int(fine_amount):,} VND (Base: {int(base_fine):,} + Book price: {int(book_price):,})"
+            else:
+                fine_amount = base_fine
+                description = f"Late return: {days_overdue} days overdue. Fine: {int(fine_amount):,} VND"
+        else:
+            # Muộn <= 30 ngày
+            fine_amount = base_fine
+            description = f"Late return: {days_overdue} days overdue. Fine: {int(fine_amount):,} VND"
 
         # Check if penalty already exists
         existing_penalty = db.session.query(PenaltySlip).filter(
@@ -170,7 +214,7 @@ class PenaltyService:
 
         if existing_penalty:
             # Update existing penalty
-            existing_penalty.description = f"Late return: {days_overdue} days overdue. Fine: {int(fine_amount):,} VND"
+            existing_penalty.description = description
             existing_penalty.status = PenaltyStatusEnum.pending
 
             db.session.commit()
@@ -189,7 +233,7 @@ class PenaltyService:
                 penalty_id=f"PEN-{uuid.uuid4().hex[:8].upper()}",
                 borrow_detail_id=borrow_detail_id,
                 penalty_type=PenaltyTypeEnum.late,
-                description=f"Late return: {days_overdue} days overdue. Fine: {int(fine_amount):,} VND",
+                description=description,
                 status=PenaltyStatusEnum.pending
             )
 
@@ -632,4 +676,102 @@ class PenaltyService:
             "skipped": skipped_count,
             "errors": errors,
             "total_processed": len(overdue_details)
+        }
+
+    @staticmethod
+    def update_all_penalty_descriptions() -> dict:
+        """
+        Update descriptions for all existing late penalties with new formula
+        Công thức mới:
+        - ≤ 30 ngày: Số ngày × 5,000 VND
+        - > 30 ngày: (Số ngày × 5,000 VND) + Giá sách
+        """
+        # Get all late penalties
+        late_penalties = db.session.query(PenaltySlip).filter(
+            PenaltySlip.penalty_type == PenaltyTypeEnum.late
+        ).all()
+        
+        updated_count = 0
+        skipped_count = 0
+        errors = []
+        
+        for penalty in late_penalties:
+            try:
+                # Get borrow detail
+                detail = db.session.query(BorrowSlipDetail).filter(
+                    BorrowSlipDetail.id == penalty.borrow_detail_id
+                ).first()
+                
+                if not detail or not detail.return_date:
+                    skipped_count += 1
+                    continue
+                
+                # Get book and price
+                book = db.session.query(Book).filter(
+                    Book.book_id == detail.book_id
+                ).first()
+                
+                book_price = None
+                if book and book.book_title and book.book_title.price:
+                    book_price = float(book.book_title.price)
+                
+                # Calculate days overdue
+                due_date = detail.return_date
+                if due_date.tzinfo is None:
+                    due_date = tz_vn.localize(due_date)
+                
+                # Use actual return date if returned, otherwise current date
+                if detail.real_return_date:
+                    compare_date = detail.real_return_date
+                    if compare_date.tzinfo is None:
+                        compare_date = tz_vn.localize(compare_date)
+                else:
+                    compare_date = datetime.now(tz=tz_vn)
+                
+                days_overdue = (compare_date.date() - due_date.date()).days
+                
+                if days_overdue <= 0:
+                    skipped_count += 1
+                    continue
+                
+                # Calculate fine with new formula
+                base_fine = days_overdue * FINE_RATES["late_per_day"]
+                
+                if days_overdue > FINE_RATES["late_threshold_days"]:
+                    if book_price:
+                        fine_amount = base_fine + book_price
+                        description = f"Late return: {days_overdue} days overdue (>{FINE_RATES['late_threshold_days']} days). Fine: {int(fine_amount):,} VND (Base: {int(base_fine):,} + Book price: {int(book_price):,})"
+                    else:
+                        fine_amount = base_fine
+                        description = f"Late return: {days_overdue} days overdue. Fine: {int(fine_amount):,} VND (No book price available)"
+                else:
+                    fine_amount = base_fine
+                    description = f"Late return: {days_overdue} days overdue. Fine: {int(fine_amount):,} VND"
+                
+                # Update description
+                penalty.description = description
+                updated_count += 1
+                
+            except Exception as e:
+                errors.append({
+                    "penalty_id": penalty.penalty_id,
+                    "error": str(e)
+                })
+        
+        # Commit changes
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to update penalty descriptions: {str(e)}"
+            )
+        
+        return {
+            "message": "Penalty descriptions updated successfully",
+            "total_penalties": len(late_penalties),
+            "updated": updated_count,
+            "skipped": skipped_count,
+            "errors": errors
         }

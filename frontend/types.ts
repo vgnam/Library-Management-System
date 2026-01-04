@@ -129,6 +129,12 @@ export interface CurrentlyBorrowedBook {
   is_overdue: boolean;
   days_overdue: number;
   status: string;
+  penalty?: {
+    is_overdue: boolean;
+    days_overdue: number;
+    fine_amount: number;
+    book_price: number | null;
+  };
 }
 
 export interface CurrentBorrowedResponse {

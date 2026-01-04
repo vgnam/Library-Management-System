@@ -77,6 +77,7 @@ class HistoryService:
         # ===========================================================
         # BUILD RESPONSE
         # ===========================================================
+        now = datetime.utcnow()
         history = []
         for r in raw_results:
             book = book_dict.get(r.book_id)
@@ -85,21 +86,46 @@ class HistoryService:
             actual_return = r.actual_return_date
 
             display_status = detail_status.capitalize()
+            is_overdue = False
+            days_overdue = 0
 
+            # Calculate overdue status based on current status and dates
             if detail_status == "active":
-                display_status = "Active"
+                if due_date and now > due_date:
+                    display_status = "Overdue"
+                    is_overdue = True
+                    days_overdue = (now.date() - due_date.date()).days
+                else:
+                    display_status = "Active"
+
             elif detail_status == "returned":
                 display_status = "Returned"
+                # Check if it was returned late
+                if actual_return and due_date and actual_return > due_date:
+                    is_overdue = True
+                    days_overdue = (actual_return.date() - due_date.date()).days
+
             elif detail_status == "pendingreturn" or detail_status == "pending_return":
                 display_status = "Pending Return"
+                # Check if it's overdue even while pending return
+                if due_date and now > due_date:
+                    is_overdue = True
+                    days_overdue = (now.date() - due_date.date()).days
+
             elif detail_status == "pending":
                 display_status = "Pending"
+
             elif detail_status == "lost":
                 display_status = "Lost"
+
             elif detail_status == "rejected":
                 display_status = "Rejected"
+
             elif detail_status == "overdue":
                 display_status = "Overdue"
+                is_overdue = True
+                if due_date:
+                    days_overdue = (now.date() - due_date.date()).days
 
             # Get penalty info
             penalty = penalty_dict.get(r.id)
@@ -129,6 +155,20 @@ class HistoryService:
                     "status": penalty.status.value,
                     "real_time_calculated": penalty.penalty_type == PenaltyTypeEnum.late
                 }
+            elif is_overdue and days_overdue > 0:
+                # No penalty record exists yet, but book is overdue - show potential penalty
+                from app.services.srv_penalty import FINE_RATES
+                potential_fine = days_overdue * FINE_RATES["late_per_day"]
+                penalty_info = {
+                    "penalty_id": None,
+                    "penalty_type": "Late",
+                    "description": f"Overdue: {days_overdue} days. Estimated fine: {int(potential_fine):,} VND",
+                    "fine_amount": int(potential_fine),
+                    "days_overdue": days_overdue,
+                    "status": "Pending",
+                    "real_time_calculated": True,
+                    "auto_calculated": True
+                }
 
             history.append({
                 "borrow_slip_id": r.bs_id,
@@ -145,6 +185,8 @@ class HistoryService:
                     "due_date": due_date.isoformat() if due_date else None,
                     "actual_return_date": actual_return.isoformat() if actual_return else None,
                     "is_returned": detail_status == "returned",
+                    "is_overdue": is_overdue,
+                    "days_overdue": days_overdue,
                     "status": display_status
                 }
             })

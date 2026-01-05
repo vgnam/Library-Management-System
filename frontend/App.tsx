@@ -11,6 +11,7 @@ import { BorrowHistory } from './pages/BorrowHistory';
 import { ReturnBook } from './pages/ReturnBook';
 import { ReaderReturnRequest } from './pages/ReaderReturnRequest';
 import { BookAcquisition } from './pages/BookAcquisition';
+import { BookManagement } from './pages/BookManagement';
 import { UserManagement } from './pages/UserManagement';
 import { api } from './services/api';
 import { UserRole } from './types';
@@ -104,6 +105,18 @@ const App: React.FC = () => {
             <Route path="/acquisition" element={
               <ProtectedRoute allowedRoles={[UserRole.LIBRARIAN, UserRole.MANAGER]}>
                 <BookAcquisition />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/librarian/acquisition" element={
+              <ProtectedRoute allowedRoles={[UserRole.LIBRARIAN, UserRole.MANAGER]}>
+                <BookAcquisition />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/librarian/books" element={
+              <ProtectedRoute allowedRoles={[UserRole.LIBRARIAN, UserRole.MANAGER]}>
+                <BookManagement />
               </ProtectedRoute>
             } />
 

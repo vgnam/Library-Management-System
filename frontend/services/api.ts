@@ -193,16 +193,20 @@ class ApiService {
 
   // --- Books ---
 
-  async searchBooks(query: { keyword?: string; page?: number }): Promise<SearchResponse> {
+  async searchBooks(query: { keyword?: string; page?: number; page_size?: number }): Promise<SearchResponse> {
     const params = new URLSearchParams();
 
     // Only append keyword if present, otherwise API returns all/paged
-    if (query.keyword) {
+    if (query.keyword !== undefined) {
       params.append('keyword', query.keyword);
     }
 
     if (query.page) {
       params.append('page', query.page.toString());
+    }
+
+    if (query.page_size) {
+      params.append('page_size', query.page_size.toString());
     }
 
     const res = await this.request<any>(`/books/search?${params.toString()}`);
@@ -405,6 +409,22 @@ class ApiService {
   async deleteBookTitle(bookTitleId: string): Promise<any> {
     return this.request<any>(`/acquisition/book-title/${bookTitleId}`, {
       method: 'DELETE'
+    });
+  }
+
+  async updateBookTitle(bookTitleId: string, data: {
+    name: string;
+    author: string;
+    isbn: string;
+    category_id: string;
+    publisher_id: string;
+  }): Promise<any> {
+    return this.request<any>(`/acquisition/book-title/${bookTitleId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data)
     });
   }
 

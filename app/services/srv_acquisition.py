@@ -12,7 +12,6 @@ from app.models.model_librarian import Librarian
 from app.models.model_book_title import BookTitle
 from app.models.model_book import Book
 from app.models.model_publisher import Publisher
-from app.models.model_categories import Category
 
 
 class AcquisitionService:
@@ -71,7 +70,16 @@ class AcquisitionService:
         for book_item in books:
             book_title_id = book_item["book_title_id"]
             quantity = book_item["quantity"]
-            price = book_item["price"]
+            
+            # Get book title to use its price if not provided
+            book_title = db.session.query(BookTitle).filter(
+                BookTitle.book_title_id == book_title_id
+            ).first()
+            
+            # Use provided price or book title's existing price
+            price = book_item.get("price")
+            if price is None:
+                price = book_title.price if book_title.price else 0
             
             # Create acquisition detail
             detail_id = f"ACQD{datetime.utcnow().strftime('%Y%m%d%H%M%S')}{str(uuid.uuid4())[:4]}"
@@ -84,11 +92,6 @@ class AcquisitionService:
             )
             db.session.add(detail)
             
-            # Get book title info
-            book_title = db.session.query(BookTitle).filter(
-                BookTitle.book_title_id == book_title_id
-            ).first()
-            
             # Create individual book records for each copy
             for i in range(quantity):
                 book_id = f"BOOK{datetime.utcnow().strftime('%Y%m%d%H%M%S')}{str(uuid.uuid4())[:6]}"
@@ -100,7 +103,12 @@ class AcquisitionService:
                 )
                 db.session.add(new_book)
             
-            # Update book title inventory
+            # Update book title inventory (handle None values)
+            if book_title.total_quantity is None:
+                book_title.total_quantity = 0
+            if book_title.available is None:
+                book_title.available = 0
+                
             book_title.total_quantity += quantity
             book_title.available += quantity
             
@@ -253,57 +261,30 @@ class AcquisitionService:
             for p in publishers
         ]
     
-    @staticmethod
-    def get_categories() -> List[dict]:
-        """Get all categories for dropdown selection"""
-        categories = db.session.query(Category).all()
-        
-        return [
-            {
-                "cat_id": c.cat_id,
-                "name": c.name
-            }
-            for c in categories
-        ]
+
 
     @staticmethod
     def create_book_title(
         name: str,
         author: str,
         isbn: str,
-        category_id: str,
+        category: str,
         publisher_id: str
     ) -> dict:
         """
-        Create a new book title if it doesn't exist
+        Create a new book title. Each book title gets a unique ID,
+        even if the name/author/ISBN are the same.
         
         Args:
             name: Book title name
             author: Author name
-            category: Book category
+            isbn: Book ISBN
+            category: Category name
             publisher_id: Publisher ID
             
         Returns:
             dict with book title info
         """
-        # Check if book title already exists
-        existing = db.session.query(BookTitle).filter(
-            BookTitle.name == name,
-            BookTitle.isbn == isbn,
-            BookTitle.author == author
-        ).first()
-        
-        if existing:
-            return {
-                "book_title_id": existing.book_title_id,
-                "name": existing.name,
-                "author": existing.author,
-                "isbn": existing.isbn,
-                "category_id": existing.category_id,
-                "publisher_id": existing.publisher_id,
-                "exists": True
-            }
-        
         # Validate publisher exists
         publisher = db.session.query(Publisher).filter(
             Publisher.pub_id == publisher_id
@@ -312,21 +293,14 @@ class AcquisitionService:
         if not publisher:
             raise HTTPException(status_code=404, detail="Publisher not found")
         
-        category = db.session.query(Category).filter(
-            Category.cat_id == category_id
-        ).first()
-        
-        if not category:
-            raise HTTPException(status_code=404, detail="Category not found")
-        
-        # Create new book title
+        # Create new book title (always create new, no duplicate check)
         book_title_id = f"BT{datetime.utcnow().strftime('%Y%m%d%H%M%S')}{str(uuid.uuid4())[:4]}"
         book_title = BookTitle(
             book_title_id=book_title_id,
             name=name,
             author=author,
             isbn=isbn,
-            category_id=category_id,
+            category=category,
             publisher_id=publisher_id,
             total_quantity=0,
             available=0
@@ -340,9 +314,71 @@ class AcquisitionService:
             "name": book_title.name,
             "author": book_title.author,
             "isbn": book_title.isbn,
-            "category": book_title.category_id,
+            "category": book_title.category,
             "publisher_id": book_title.publisher_id,
             "exists": False
+        }
+
+    @staticmethod
+    def update_book_title(
+        book_title_id: str,
+        name: str,
+        author: str,
+        isbn: str,
+        category: str,
+        publisher_id: str
+    ) -> dict:
+        """
+        Update an existing book title
+        
+        Args:
+            book_title_id: ID of the book title to update
+            name: New book title name
+            author: New author name
+            isbn: New ISBN
+            category: Category name
+            publisher_id: New publisher ID
+            
+        Returns:
+            dict with updated book title info
+            
+        Raises:
+            HTTPException: If book title or publisher not found
+        """
+        # Check if book title exists
+        book_title = db.session.query(BookTitle).filter(
+            BookTitle.book_title_id == book_title_id
+        ).first()
+        
+        if not book_title:
+            raise HTTPException(status_code=404, detail="Book title not found")
+        
+        # Validate publisher exists
+        publisher = db.session.query(Publisher).filter(
+            Publisher.pub_id == publisher_id
+        ).first()
+        
+        if not publisher:
+            raise HTTPException(status_code=404, detail="Publisher not found")
+        
+        # Update book title fields
+        book_title.name = name
+        book_title.author = author
+        book_title.isbn = isbn
+        book_title.category = category
+        book_title.publisher_id = publisher_id
+        
+        db.session.commit()
+        
+        return {
+            "book_title_id": book_title.book_title_id,
+            "name": book_title.name,
+            "author": book_title.author,
+            "isbn": book_title.isbn,
+            "category": book_title.category,
+            "publisher_id": book_title.publisher_id,
+            "total_quantity": book_title.total_quantity,
+            "available": book_title.available
         }
 
     @staticmethod

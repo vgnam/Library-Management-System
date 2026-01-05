@@ -183,7 +183,7 @@ class LibrarianManagementService:
                     "book_title_id": book_title_obj.book_title_id,
                     "title": book_title_obj.name,
                     "author": book_title_obj.author,
-                    "category": book_title_obj.category.name if book_title_obj.category else None,
+                    "category": book_title_obj.category if book_title_obj else None,
                     "publisher": book_title_obj.publisher.name if book_title_obj.publisher else None,
                     "borrow_slip_id": detail.borrow_slip_id,
                     "borrow_date": detail.borrow_slip.borrow_date.strftime("%Y-%m-%d %H:%M:%S"),

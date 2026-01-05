@@ -47,7 +47,7 @@ class BookSearchService:
                 )
 
                 category_score = fuzz.partial_ratio(
-                    kw, (book.category.name if book.category else "").lower()
+                    kw, (book.category or "").lower()
                 )
 
                 # choose max score among the three
@@ -88,12 +88,14 @@ class BookSearchService:
             available_books = total_books - borrowed_books
             
             books_list.append({
-                "id": b.book_title_id,
+                "book_title_id": b.book_title_id,
                 "name": b.name,
                 "author": b.author,
                 "publisher": b.publisher.name if b.publisher else None,
-                "category": b.category.name if b.category else None,
+                "publisher_id": b.publisher_id,
+                "category": b.category,
                 "isbn": b.isbn,
+                "price": b.price if b.price else 0,
                 "total_books": total_books,
                 "borrowed_books": borrowed_books,
                 "available_books": available_books

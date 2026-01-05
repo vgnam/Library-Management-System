@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
-import { Category, Publisher, BookItemForAcquisition, AcquisitionSlip } from '../types';
+import { Publisher, BookItemForAcquisition, AcquisitionSlip } from '../types';
 import { Button } from '../components/Button';
 import Swal from 'sweetalert2';
 
@@ -10,7 +10,6 @@ export const BookAcquisition: React.FC = () => {
   
   // State management
   const [publishers, setPublishers] = useState<Publisher[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -21,7 +20,7 @@ export const BookAcquisition: React.FC = () => {
     name: '',
     author: '',
     isbn: '',
-    category_id: '',
+    category: '',
     publisher_id: ''
   });
   
@@ -57,24 +56,11 @@ export const BookAcquisition: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  const fetchCategories = async () => {
-    try {
-      const response = await api.getCategories();
-      setCategories(response.data || []);
-    } catch (err: any) {
-      setError('Failed to load categories: ' + (err.response?.data?.detail || err.message));
-    }
-  };
-
   const handleSearchBooks = async () => {
     if (!searchKeyword.trim()) return;
     
     try {
-      const response = await api.searchBooks({ keyword: searchKeyword, page: 1 });
+      const response = await api.searchBooks({ keyword: searchKeyword, page: 1, page_size: 10000 });
       setSearchResults(response.books || []);
     } catch (err: any) {
       setError('Search failed: ' + (err.response?.data?.detail || err.message));
@@ -85,14 +71,15 @@ export const BookAcquisition: React.FC = () => {
     setCurrentItem({
       ...currentItem,
       book_title_id: book.book_title_id,
-      book_name: book.name
+      book_name: book.name,
+      price: book.price || 0  // Auto-fill price from existing book
     });
     setSearchResults([]);
     setSearchKeyword('');
   };
 
   const handleCreateNewBookTitle = async () => {
-    if (!newBookTitle.name || !newBookTitle.author || !newBookTitle.isbn || !newBookTitle.category_id || !newBookTitle.publisher_id) {
+    if (!newBookTitle.name || !newBookTitle.author || !newBookTitle.isbn || !newBookTitle.category || !newBookTitle.publisher_id) {
       setError('Please fill all book title fields');
       return;
     }
@@ -230,53 +217,6 @@ export const BookAcquisition: React.FC = () => {
     }
   };
 
-  const handleDeleteBookTitle = async (bookTitleId: string, bookName: string) => {
-    const result = await Swal.fire({
-      title: 'Delete Book Title?',
-      html: `Are you sure you want to delete <strong>${bookName}</strong>?<br><br><span style="color: #dc2626; font-size: 0.875rem;">This will delete all physical copies of this book. This action cannot be undone.</span>`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#dc2626',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Yes, delete',
-      cancelButtonText: 'Cancel'
-    });
-
-    if (!result.isConfirmed) return;
-
-    try {
-      const response = await api.deleteBookTitle(bookTitleId);
-      
-      Swal.fire({
-        icon: 'success',
-        title: 'Deleted!',
-        text: response.data.message || 'Book title deleted successfully',
-        timer: 2000,
-        showConfirmButton: false
-      });
-      
-      // Remove from search results
-      setSearchResults(searchResults.filter(book => book.book_title_id !== bookTitleId));
-      
-      // Clear current item if it was selected
-      if (currentItem.book_title_id === bookTitleId) {
-        setCurrentItem({
-          book_title_id: '',
-          book_name: '',
-          quantity: 1,
-          price: 0
-        });
-      }
-      
-    } catch (err: any) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Failed',
-        text: err.message || 'Failed to delete book title'
-      });
-    }
-  };
-
   const totalAmount = acquisitionItems.reduce(
     (sum, item) => sum + (item.quantity * item.price),
     0
@@ -286,16 +226,27 @@ export const BookAcquisition: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Book Acquisition</h1>
-        <Button
-          onClick={() => {
-            setShowHistory(!showHistory);
-            if (!showHistory) fetchHistory(1);
-          }}
-          variant="secondary"
-        >
-          {showHistory ? 'Create New Acquisition' : 'View History'}
-        </Button>
+        <div>
+          <h1 className="text-3xl font-bold">📦 Book Acquisition</h1>
+          <p className="text-gray-600 mt-1">Add new physical copies to library inventory</p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => navigate('/librarian/books')}
+            variant="secondary"
+          >
+            📚 Manage Books
+          </Button>
+          <Button
+            onClick={() => {
+              setShowHistory(!showHistory);
+              if (!showHistory) fetchHistory(1);
+            }}
+            variant="secondary"
+          >
+            {showHistory ? '➕ New Acquisition' : '📜 History'}
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -313,8 +264,14 @@ export const BookAcquisition: React.FC = () => {
       {!showHistory ? (
         <div className="space-y-6">
           {/* Search Existing Books */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Search Existing Books</h2>
+          <div className="bg-white rounded-lg shadow p-6 border-2 border-blue-200">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">📚</span>
+              <h2 className="text-xl font-semibold">Search & Select Book from Database</h2>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Search for existing books in the database. Click on a book to select it for acquisition.
+            </p>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -324,35 +281,34 @@ export const BookAcquisition: React.FC = () => {
                 onChange={(e) => setSearchKeyword(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearchBooks()}
               />
-              <Button onClick={handleSearchBooks}>Search</Button>
+              <Button onClick={handleSearchBooks}>🔍 Search</Button>
             </div>
             
             {searchResults.length > 0 && (
-              <div className="mt-4 border rounded max-h-60 overflow-y-auto">
+              <div className="mt-4 border-2 border-green-300 rounded max-h-80 overflow-y-auto bg-green-50">
+                <div className="bg-green-100 px-4 py-2 border-b-2 border-green-300 sticky top-0">
+                  <p className="text-sm font-semibold text-green-800">
+                    ✓ Found {searchResults.length} book(s). Click to select for acquisition.
+                  </p>
+                </div>
                 {searchResults.map((book) => (
                   <div
                     key={book.book_title_id}
-                    className="p-3 border-b hover:bg-gray-50 flex justify-between items-center"
+                    className={`p-3 border-b hover:bg-green-100 flex justify-between items-center cursor-pointer transition ${
+                      currentItem.book_title_id === book.book_title_id ? 'bg-green-200 border-l-4 border-l-green-600' : ''
+                    }`}
+                    onClick={() => selectBookFromSearch(book)}
                   >
-                    <div 
-                      className="flex-1 cursor-pointer"
-                      onClick={() => selectBookFromSearch(book)}
-                    >
-                      <div className="font-semibold">{book.name}</div>
-                      <div className="text-sm text-gray-600">
-                        by {book.author} | {book.publisher} | Available: {book.available_books} | {book.category}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        {currentItem.book_title_id === book.book_title_id && <span className="text-green-600">✓</span>}
+                        <div className="font-semibold">{book.name}</div>
                       </div>
+                      <div className="text-sm text-gray-700">
+                        by {book.author} | {book.publisher} | Stock: {book.available_books}/{book.total_books} | {book.category}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">ISBN: {book.isbn}</div>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteBookTitle(book.book_title_id, book.name);
-                      }}
-                      className="ml-4 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded border border-red-300"
-                      title="Delete this book title"
-                    >
-                      Delete
-                    </button>
                   </div>
                 ))}
               </div>
@@ -360,16 +316,22 @@ export const BookAcquisition: React.FC = () => {
           </div>
 
           {/* Create New Book Title */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-lg shadow p-6 border-2 border-purple-200">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Create New Book Title</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">➕</span>
+                <h2 className="text-xl font-semibold">Create New Book Title (Optional)</h2>
+              </div>
               <Button
                 onClick={() => setShowNewBookForm(!showNewBookForm)}
                 variant="secondary"
               >
-                {showNewBookForm ? 'Cancel' : 'New Book'}
+                {showNewBookForm ? '❌ Cancel' : '📝 New Book'}
               </Button>
             </div>
+            <p className="text-sm text-gray-600 mb-4">
+              If the book doesn't exist in database, create a new book title first.
+            </p>
 
             {showNewBookForm && (
               <div className="grid grid-cols-2 gap-4">
@@ -394,18 +356,13 @@ export const BookAcquisition: React.FC = () => {
                   value={newBookTitle.author}
                   onChange={(e) => setNewBookTitle({ ...newBookTitle, author: e.target.value })}
                 />
-                <select
+                <input
+                  type="text"
                   className="border rounded px-3 py-2"
-                  value={newBookTitle.category_id}
-                  onChange={(e) => setNewBookTitle({ ...newBookTitle, category_id: e.target.value })}
-                >
-                  <option value="">Select Category *</option>
-                  {categories.map((cat) => (
-                    <option key={cat.cat_id} value={cat.cat_id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Category *"
+                  value={newBookTitle.category}
+                  onChange={(e) => setNewBookTitle({ ...newBookTitle, category: e.target.value })}
+                />
                 <select
                   className="border rounded px-3 py-2"
                   value={newBookTitle.publisher_id}
@@ -428,18 +385,31 @@ export const BookAcquisition: React.FC = () => {
           </div>
 
           {/* Add Item to Acquisition */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Add Item to Acquisition</h2>
+          <div className="bg-white rounded-lg shadow p-6 border-2 border-orange-200">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">📦</span>
+              <h2 className="text-xl font-semibold">Add to Acquisition List</h2>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              After selecting a book, enter quantity and price per book to add to acquisition list.
+            </p>
             <div className="grid grid-cols-4 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Selected Book</label>
+                <label className="block text-sm font-medium mb-1">
+                  Selected Book {currentItem.book_title_id && '✓'}
+                </label>
                 <input
                   type="text"
-                  className="w-full border rounded px-3 py-2 bg-gray-50"
-                  placeholder="Search or create book first"
+                  className={`w-full border rounded px-3 py-2 ${
+                    currentItem.book_title_id ? 'bg-green-50 border-green-300' : 'bg-gray-50'
+                  }`}
+                  placeholder="👈 Search and select a book first"
                   value={currentItem.book_name}
                   readOnly
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  {currentItem.book_title_id ? `ID: ${currentItem.book_title_id}` : 'No book selected'}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Quantity *</label>
@@ -452,18 +422,28 @@ export const BookAcquisition: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Price (VND) *</label>
+                <label className="block text-sm font-medium mb-1">
+                  Price (VND) {currentItem.book_title_id ? '(from database)' : '*'}
+                </label>
                 <input
                   type="number"
-                  className="w-full border rounded px-3 py-2"
+                  className={`w-full border rounded px-3 py-2 ${
+                    currentItem.book_title_id ? 'bg-gray-100' : ''
+                  }`}
                   min="0"
                   value={currentItem.price}
                   onChange={(e) => setCurrentItem({ ...currentItem, price: parseInt(e.target.value) || 0 })}
+                  readOnly={!!currentItem.book_title_id}
+                  title={currentItem.book_title_id ? 'Price is automatically taken from book database' : 'Enter price for new book'}
                 />
               </div>
               <div className="col-span-4">
-                <Button onClick={addItemToAcquisition} disabled={!currentItem.book_title_id}>
-                  Add to List
+                <Button 
+                  onClick={addItemToAcquisition} 
+                  disabled={!currentItem.book_title_id}
+                  className="w-full"
+                >
+                  {currentItem.book_title_id ? '✅ Add to Acquisition List' : '⚠️ Please select a book first'}
                 </Button>
               </div>
             </div>
@@ -471,8 +451,11 @@ export const BookAcquisition: React.FC = () => {
 
           {/* Acquisition List */}
           {acquisitionItems.length > 0 && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">📋 Acquisition List</h2>
+            <div className="bg-white rounded-lg shadow p-6 border-2 border-green-200">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-2xl">📋</span>
+                <h2 className="text-xl font-semibold">Review & Submit Acquisition</h2>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">

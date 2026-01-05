@@ -66,7 +66,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                    <>
                     <NavLink to="/librarian/dashboard">Request Management</NavLink>
                     <NavLink to="/user-management">User Management</NavLink>
-                    <NavLink to="/acquisition">Book Acquisition</NavLink>
+                    <NavLink to="/librarian/books">Book Management</NavLink>
+                    <NavLink to="/librarian/acquisition">Book Acquisition</NavLink>
                    </>
                 )}
                 {token && userRole === UserRole.MANAGER && (
@@ -122,7 +123,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <>
                    <Link to="/librarian/dashboard" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Request Management</Link>
                    <Link to="/user-management" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">User Management</Link>
-                   <Link to="/acquisition" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Book Acquisition</Link>
+                   <Link to="/librarian/books" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Book Management</Link>
+                   <Link to="/librarian/acquisition" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Book Acquisition</Link>
                   </>
                 )}
                 {token && userRole === UserRole.MANAGER && (

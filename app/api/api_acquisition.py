@@ -20,7 +20,7 @@ class BookItemModel(BaseModel):
     """Model for each book item in acquisition"""
     book_title_id: str = Field(..., description="Book title ID")
     quantity: int = Field(..., ge=1, description="Quantity to acquire")
-    price: int = Field(..., ge=0, description="Price per book (VND)")
+    price: Optional[int] = Field(None, ge=0, description="Price per book (VND). If not provided, uses existing book title price")
 
 
 class CreateAcquisitionModel(BaseModel):
@@ -33,7 +33,7 @@ class CreateBookTitleModel(BaseModel):
     name: str = Field(..., description="Book title name")
     author: str = Field(..., description="Author name")
     isbn: str = Field(..., description="ISBN")
-    category_id: str = Field(..., description="Category ID")
+    category: str = Field(..., description="Category name")
     publisher_id: str = Field(..., description="Publisher ID")
 
 
@@ -144,25 +144,6 @@ def get_publishers(
         data=result
     )
 
-@router.get("/categories", summary="Get All Categories")
-def get_categories(
-    token: str = Depends(auth_service.librarian_oauth2),
-    infraction_check: dict = Depends(check_all_readers_infractions)
-) -> DataResponse:
-    """
-    Get all publishers for dropdown selection.
-    Only accessible by librarians.
-    """
-    auth_service.get_current_user(token)
-    
-    result = acquisition_service.get_categories()
-    
-    return DataResponse(
-        success=True,
-        message="Publishers retrieved successfully",
-        data=result
-    )
-
 @router.post("/book-title/create", summary="Create New Book Title")
 def create_book_title(
     data: CreateBookTitleModel = Body(...),
@@ -180,13 +161,42 @@ def create_book_title(
         name=data.name,
         author=data.author,
         isbn=data.isbn,
-        category_id=data.category_id,
+        category=data.category,
         publisher_id=data.publisher_id
     )
     
     return DataResponse(
         success=True,
         message="Book title created successfully" if not result.get("exists") else "Book title already exists",
+        data=result
+    )
+
+
+@router.put("/book-title/{book_title_id}", summary="Update Book Title")
+def update_book_title(
+    book_title_id: str,
+    data: CreateBookTitleModel = Body(...),
+    token: str = Depends(auth_service.librarian_oauth2),
+    infraction_check: dict = Depends(check_all_readers_infractions)
+) -> DataResponse:
+    """
+    Update an existing book title.
+    Only accessible by librarians.
+    """
+    auth_service.get_current_user(token)
+    
+    result = acquisition_service.update_book_title(
+        book_title_id=book_title_id,
+        name=data.name,
+        author=data.author,
+        isbn=data.isbn,
+        category=data.category,
+        publisher_id=data.publisher_id
+    )
+    
+    return DataResponse(
+        success=True,
+        message="Book title updated successfully",
         data=result
     )
 

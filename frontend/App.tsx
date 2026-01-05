@@ -5,6 +5,7 @@ import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { BookSearch } from './pages/BookSearch';
+import { PublicBookBrowse } from './pages/PublicBookBrowse';
 import { LibrarianDashboard } from './pages/LibrarianDashboard';
 import { ManagerDashboard } from './pages/ManagerDashboard';
 import { BorrowHistory } from './pages/BorrowHistory';
@@ -45,8 +46,9 @@ const RootRedirect = () => {
   const token = api.getToken();
   const userRole = localStorage.getItem('userRole') as UserRole;
 
+  // If not logged in, show public book browse
   if (!token) {
-    return <Navigate to="/login" replace />;
+    return <PublicBookBrowse />;
   }
 
   if (userRole === UserRole.MANAGER) {
@@ -70,6 +72,7 @@ const App: React.FC = () => {
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/browse" element={<PublicBookBrowse />} />
 
             {/* Root Route - Smart Redirect */}
             <Route path="/" element={<RootRedirect />} />

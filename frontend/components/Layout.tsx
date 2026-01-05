@@ -55,6 +55,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               </Link>
               
               <div className="hidden md:block ml-10 flex items-baseline space-x-4">
+                {/* Public navigation for guests */}
+                {!token && (
+                  <>
+                    <NavLink to="/browse">Browse Books</NavLink>
+                  </>
+                )}
                 {token && userRole === UserRole.READER && (
                   <>
                     <NavLink to="/">Browse Collection</NavLink>
@@ -134,6 +140,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 )}
                 {!token && (
                   <>
+                    <Link to="/browse" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Browse Books</Link>
                     <Link to="/login" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Login</Link>
                     <Link to="/register" className="block px-3 py-2 rounded-md text-base font-medium text-white hover:bg-blue-700">Register</Link>
                   </>

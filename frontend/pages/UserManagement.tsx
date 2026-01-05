@@ -45,22 +45,20 @@ export const UserManagement: React.FC = () => {
   const loadReadersList = async (search: string = '') => {
     setLoading(true);
     try {
-      // Load all readers with status filter if not already loaded or filter changed
-      if (allReaders.length === 0 || !search.trim()) {
-        const response = await api.listReaders(statusFilter, 500, 0); // Load readers for fuzzy search (max 500)
-        setAllReaders(response.readers);
-        
-        if (!search.trim()) {
-          setReadersList(response.readers);
-          setPagination({ ...pagination, total: response.total });
-          setLoading(false);
-          return;
-        }
+      // Always load fresh data from API to get latest status
+      const response = await api.listReaders(statusFilter, 500, 0);
+      setAllReaders(response.readers);
+      
+      if (!search.trim()) {
+        setReadersList(response.readers);
+        setPagination({ ...pagination, total: response.total });
+        setLoading(false);
+        return;
       }
       
-      // Perform fuzzy search
+      // Perform fuzzy search on fresh data
       if (search.trim()) {
-        const fuse = new Fuse(allReaders.length > 0 ? allReaders : readersList, {
+        const fuse = new Fuse(response.readers, {
           keys: [
             { name: 'username', weight: 2 },
             { name: 'full_name', weight: 1.5 },

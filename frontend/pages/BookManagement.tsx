@@ -169,14 +169,14 @@ export const BookManagement: React.FC = () => {
     <div className="max-w-6xl mx-auto px-4 py-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">📚 Book Management</h1>
+          <h1 className="text-3xl font-bold">Book Management</h1>
           <p className="text-gray-600 mt-1">Search, edit, and manage book titles in the database</p>
         </div>
         <Button
           onClick={() => navigate('/librarian/acquisition')}
           variant="secondary"
         >
-          ➕ Add Books (Acquisition)
+          Add Books (Acquisition)
         </Button>
       </div>
 
@@ -196,7 +196,6 @@ export const BookManagement: React.FC = () => {
         {/* Search Books */}
         <div className="bg-white rounded-lg shadow p-6 border-2 border-blue-200">
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-2xl">🔍</span>
             <h2 className="text-xl font-semibold">Search Book Titles</h2>
           </div>
           <p className="text-sm text-gray-600 mb-4">
@@ -211,14 +210,14 @@ export const BookManagement: React.FC = () => {
               onChange={(e) => setSearchKeyword(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearchBooks()}
             />
-            <Button onClick={handleSearchBooks}>🔍 Search</Button>
+            <Button onClick={handleSearchBooks}>Search</Button>
           </div>
           
           {searchResults.length > 0 && (
             <div className="mt-4 border-2 border-blue-300 rounded max-h-96 overflow-y-auto">
               <div className="bg-blue-100 px-4 py-2 border-b-2 border-blue-300 sticky top-0">
                 <p className="text-sm font-semibold text-blue-800">
-                  ✓ Found {searchResults.length} book title(s)
+                  Found {searchResults.length} book title(s)
                 </p>
               </div>
               {searchResults.map((book) => (
@@ -232,7 +231,7 @@ export const BookManagement: React.FC = () => {
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         {editingBook?.book_title_id === book.book_title_id && (
-                          <span className="text-blue-600 text-sm">✏️ Editing</span>
+                          <span className="text-blue-600 text-sm">Editing</span>
                         )}
                         <h3 className="font-semibold text-lg">{book.name}</h3>
                       </div>
@@ -253,14 +252,14 @@ export const BookManagement: React.FC = () => {
                         className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded"
                         title="Edit this book title"
                       >
-                        ✏️ Edit
+                        Edit
                       </button>
                       <button
                         onClick={() => handleDeleteBookTitle(book.book_title_id, book.name)}
                         className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded"
                         title="Delete this book title"
                       >
-                        🗑️ Delete
+                        Delete
                       </button>
                     </div>
                   </div>
@@ -280,7 +279,6 @@ export const BookManagement: React.FC = () => {
         {showEditForm && editingBook && (
           <div id="edit-form" className="bg-white rounded-lg shadow p-6 border-2 border-orange-200">
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-2xl">✏️</span>
               <h2 className="text-xl font-semibold">Edit Book Title</h2>
             </div>
             <div className="bg-orange-50 border border-orange-200 rounded p-3 mb-4">
@@ -346,7 +344,7 @@ export const BookManagement: React.FC = () => {
               </div>
               <div className="col-span-2 flex gap-2">
                 <Button onClick={handleUpdateBookTitle} disabled={loading}>
-                  {loading ? 'Updating...' : '✅ Update Book Title'}
+                  {loading ? 'Updating...' : 'Update Book Title'}
                 </Button>
                 <Button 
                   onClick={() => {
@@ -355,7 +353,7 @@ export const BookManagement: React.FC = () => {
                   }} 
                   variant="secondary"
                 >
-                  ❌ Cancel
+                  Cancel
                 </Button>
               </div>
             </div>

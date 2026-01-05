@@ -11,7 +11,7 @@ from app.schemas.sche_base import DataResponse
 from app.models.model_book_title import BookTitle
 from app.models.model_book import Book
 from app.models.model_borrow import BorrowSlip, BorrowSlipDetail, BorrowStatusEnum
-from app.core.dependencies import check_reader_infractions, check_all_readers_infractions
+from app.core.dependencies import check_all_readers_infractions
 
 
 router = APIRouter(prefix="/books", tags=["Books"])
@@ -42,8 +42,7 @@ def get_borrow_requests(
 def create_borrow_request(
         # Sử dụng embed=True để nhận JSON: {"book_title_ids": ["id1", "id2"]}
         book_title_ids: List[str] = Body(..., embed=True),
-        token: str = Depends(auth_service.reader_oauth2),
-        infraction_check: dict = Depends(lambda token=Depends(auth_service.reader_oauth2): check_reader_infractions(token))
+        token: str = Depends(auth_service.reader_oauth2)
 ) -> DataResponse:
     user = auth_service.get_current_user(token)
     reader = db.session.query(Reader).filter(Reader.user_id == user.user_id).first()
@@ -110,8 +109,7 @@ def reject_borrow_request(
 @router.delete("/borrow-request/{borrow_slip_id}/cancel", summary="Cancel Borrow Request")
 def cancel_borrow_request(
         borrow_slip_id: str,
-        token: str = Depends(auth_service.reader_oauth2),
-        infraction_check: dict = Depends(lambda token=Depends(auth_service.reader_oauth2): check_reader_infractions(token))
+        token: str = Depends(auth_service.reader_oauth2)
 ) -> DataResponse:
     user = auth_service.get_current_user(token)
     reader = db.session.query(Reader).filter(Reader.user_id == user.user_id).first()

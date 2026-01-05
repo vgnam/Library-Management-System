@@ -6,7 +6,7 @@ from app.services.srv_return import ReturnService
 from app.services.srv_auth import AuthService
 from app.services.srv_history import HistoryService
 from app.schemas.sche_base import DataResponse
-from app.core.dependencies import check_reader_infractions, check_all_readers_infractions
+from app.core.dependencies import check_all_readers_infractions
 
 router = APIRouter(prefix="/returns", tags=["Returns"])
 auth_service = AuthService()
@@ -27,8 +27,7 @@ class RequestReturnModel(BaseModel):
 @router.post("/request-return")
 def request_return(
     request: RequestReturnModel,
-    token: str = Depends(auth_service.reader_oauth2),
-    infraction_check: dict = Depends(lambda token=Depends(auth_service.reader_oauth2): check_reader_infractions(token))
+    token: str = Depends(auth_service.reader_oauth2)
 ):
     user = auth_service.get_current_user(token)
     # Gọi service với user_id từ token

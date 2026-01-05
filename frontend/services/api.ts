@@ -193,12 +193,71 @@ class ApiService {
 
   // --- Books ---
 
-  async searchBooks(query: { keyword?: string; page?: number; page_size?: number }): Promise<SearchResponse> {
+  // Public API - no auth required
+  async browseBooks(query: { keyword?: string; category?: string; page?: number; page_size?: number }): Promise<SearchResponse> {
+    const params = new URLSearchParams();
+
+    if (query.keyword) {
+      params.append('keyword', query.keyword);
+    }
+    if (query.category) {
+      params.append('category', query.category);
+    }
+    if (query.page) {
+      params.append('page', query.page.toString());
+    }
+    if (query.page_size) {
+      params.append('page_size', query.page_size.toString());
+    }
+
+    // This endpoint doesn't require auth
+    const response = await fetch(`${API_BASE_URL}/books/public/browse?${params.toString()}`);
+    const data = await response.json();
+    return data.data || data;
+  }
+
+  // Public API - get categories
+  async getCategories(): Promise<string[]> {
+    const response = await fetch(`${API_BASE_URL}/books/public/categories`);
+    const data = await response.json();
+    const result = data.data || data;
+    return result.categories || [];
+  }
+
+  async publicBrowseBooks(query: { keyword?: string; category?: string; page?: number; page_size?: number }): Promise<SearchResponse> {
+    const params = new URLSearchParams();
+
+    if (query.keyword) {
+      params.append('keyword', query.keyword);
+    }
+    
+    if (query.category) {
+      params.append('category', query.category);
+    }
+
+    if (query.page) {
+      params.append('page', query.page.toString());
+    }
+
+    if (query.page_size) {
+      params.append('page_size', query.page_size.toString());
+    }
+
+    const response = await fetch(`${API_BASE_URL}/books/public/browse?${params.toString()}`);
+    const data = await response.json();
+    return data.data || data;
+  }
+
+  async searchBooks(query: { keyword?: string; category?: string; page?: number; page_size?: number }): Promise<SearchResponse> {
     const params = new URLSearchParams();
 
     // Only append keyword if present, otherwise API returns all/paged
     if (query.keyword !== undefined) {
       params.append('keyword', query.keyword);
+    }
+    
+    if (query.category) {
+      params.append('category', query.category);
     }
 
     if (query.page) {
@@ -389,7 +448,7 @@ class ApiService {
     return this.request<any>('/acquisition/isbn');
   }
 
-  async getCategories(): Promise<any> {
+  async getAcquisitionCategories(): Promise<any> {
     return this.request<any>('/acquisition/categories');
   }
 
@@ -416,7 +475,7 @@ class ApiService {
     name: string;
     author: string;
     isbn: string;
-    category_id: string;
+    category: string;
     publisher_id: string;
   }): Promise<any> {
     return this.request<any>(`/acquisition/book-title/${bookTitleId}`, {

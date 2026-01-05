@@ -400,7 +400,7 @@ export const BookSearch: React.FC = () => {
                   <div className="mt-auto space-y-5">
                     <div className="flex justify-between items-center py-3 border-y border-slate-50">
                       <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg tracking-tighter ${book.available_books > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {book.available_books > 0 ? `${book.available_books} IN STOCK` : 'OUT OF STOCK'}
+                        {book.available_books > 0 ? 'IN STOCK' : 'OUT OF STOCK'}
                       </span>
                       <span className="text-[10px] text-slate-400 font-mono font-bold tracking-widest uppercase">ISBN: {book.isbn}</span>
                     </div>

@@ -227,7 +227,7 @@ export const BookAcquisition: React.FC = () => {
     <div className="max-w-6xl mx-auto px-4 py-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">📦 Book Acquisition</h1>
+          <h1 className="text-3xl font-bold">Book Acquisition</h1>
           <p className="text-gray-600 mt-1">Add new physical copies to library inventory</p>
         </div>
         <div className="flex gap-2">
@@ -235,7 +235,7 @@ export const BookAcquisition: React.FC = () => {
             onClick={() => navigate('/librarian/books')}
             variant="secondary"
           >
-            📚 Manage Books
+            Manage Books
           </Button>
           <Button
             onClick={() => {
@@ -244,7 +244,7 @@ export const BookAcquisition: React.FC = () => {
             }}
             variant="secondary"
           >
-            {showHistory ? '➕ New Acquisition' : '📜 History'}
+            {showHistory ? 'New Acquisition' : 'History'}
           </Button>
         </div>
       </div>
@@ -266,7 +266,6 @@ export const BookAcquisition: React.FC = () => {
           {/* Search Existing Books */}
           <div className="bg-white rounded-lg shadow p-6 border-2 border-blue-200">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl">📚</span>
               <h2 className="text-xl font-semibold">Search & Select Book from Database</h2>
             </div>
             <p className="text-sm text-gray-600 mb-4">
@@ -281,14 +280,14 @@ export const BookAcquisition: React.FC = () => {
                 onChange={(e) => setSearchKeyword(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearchBooks()}
               />
-              <Button onClick={handleSearchBooks}>🔍 Search</Button>
+              <Button onClick={handleSearchBooks}>Search</Button>
             </div>
             
             {searchResults.length > 0 && (
               <div className="mt-4 border-2 border-green-300 rounded max-h-80 overflow-y-auto bg-green-50">
                 <div className="bg-green-100 px-4 py-2 border-b-2 border-green-300 sticky top-0">
                   <p className="text-sm font-semibold text-green-800">
-                    ✓ Found {searchResults.length} book(s). Click to select for acquisition.
+                    Found {searchResults.length} book(s). Click to select for acquisition.
                   </p>
                 </div>
                 {searchResults.map((book) => (
@@ -301,7 +300,6 @@ export const BookAcquisition: React.FC = () => {
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        {currentItem.book_title_id === book.book_title_id && <span className="text-green-600">✓</span>}
                         <div className="font-semibold">{book.name}</div>
                       </div>
                       <div className="text-sm text-gray-700">
@@ -319,14 +317,13 @@ export const BookAcquisition: React.FC = () => {
           <div className="bg-white rounded-lg shadow p-6 border-2 border-purple-200">
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-2xl">➕</span>
                 <h2 className="text-xl font-semibold">Create New Book Title (Optional)</h2>
               </div>
               <Button
                 onClick={() => setShowNewBookForm(!showNewBookForm)}
                 variant="secondary"
               >
-                {showNewBookForm ? '❌ Cancel' : '📝 New Book'}
+                {showNewBookForm ? 'Cancel' : 'New Book'}
               </Button>
             </div>
             <p className="text-sm text-gray-600 mb-4">
@@ -387,7 +384,6 @@ export const BookAcquisition: React.FC = () => {
           {/* Add Item to Acquisition */}
           <div className="bg-white rounded-lg shadow p-6 border-2 border-orange-200">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl">📦</span>
               <h2 className="text-xl font-semibold">Add to Acquisition List</h2>
             </div>
             <p className="text-sm text-gray-600 mb-4">
@@ -396,14 +392,14 @@ export const BookAcquisition: React.FC = () => {
             <div className="grid grid-cols-4 gap-4">
               <div className="col-span-2">
                 <label className="block text-sm font-medium mb-1">
-                  Selected Book {currentItem.book_title_id && '✓'}
+                  Selected Book
                 </label>
                 <input
                   type="text"
                   className={`w-full border rounded px-3 py-2 ${
                     currentItem.book_title_id ? 'bg-green-50 border-green-300' : 'bg-gray-50'
                   }`}
-                  placeholder="👈 Search and select a book first"
+                  placeholder="Search and select a book first"
                   value={currentItem.book_name}
                   readOnly
                 />
@@ -443,7 +439,7 @@ export const BookAcquisition: React.FC = () => {
                   disabled={!currentItem.book_title_id}
                   className="w-full"
                 >
-                  {currentItem.book_title_id ? '✅ Add to Acquisition List' : '⚠️ Please select a book first'}
+                  {currentItem.book_title_id ? 'Add to Acquisition List' : 'Please select a book first'}
                 </Button>
               </div>
             </div>
@@ -453,7 +449,6 @@ export const BookAcquisition: React.FC = () => {
           {acquisitionItems.length > 0 && (
             <div className="bg-white rounded-lg shadow p-6 border-2 border-green-200">
               <div className="flex items-center gap-2 mb-4">
-                <span className="text-2xl">📋</span>
                 <h2 className="text-xl font-semibold">Review & Submit Acquisition</h2>
               </div>
               <div className="overflow-x-auto">
@@ -481,7 +476,7 @@ export const BookAcquisition: React.FC = () => {
                             onClick={() => removeItem(item.book_title_id)}
                             className="text-red-600 hover:text-red-800"
                           >
-                            ❌
+                            Remove
                           </button>
                         </td>
                       </tr>
@@ -507,7 +502,7 @@ export const BookAcquisition: React.FC = () => {
       ) : (
         // History View
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">📜 Acquisition History</h2>
+          <h2 className="text-xl font-semibold mb-4">Acquisition History</h2>
           {loading ? (
             <div className="text-center py-8">Loading...</div>
           ) : history.length === 0 ? (

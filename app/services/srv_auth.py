@@ -104,6 +104,13 @@ class AuthService:
             user.last_login = datetime.utcnow()
             db.session.commit()
 
+            # Kích hoạt check infractions cho TẤT CẢ readers khi bất kỳ ai đăng nhập
+            try:
+                from app.core.dependencies import check_all_readers_infractions
+                check_all_readers_infractions()
+            except Exception as e:
+                print(f"Warning: Failed to check infractions: {e}")
+
             # Tự động update penalty descriptions khi manager hoặc librarian đăng nhập
             if role.lower() in ['manager', 'librarian']:
                 try:

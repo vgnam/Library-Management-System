@@ -107,3 +107,15 @@ class BookSearchService:
             "page_size": page_size,
             "books": books_list
         }
+
+    @staticmethod
+    def get_all_categories():
+        """Get all unique categories from book titles"""
+        categories = db.session.query(BookTitle.category).distinct().all()
+        # Filter out None and empty strings
+        category_list = [c[0] for c in categories if c[0] and c[0].strip()]
+        category_list.sort()
+        return {
+            "categories": category_list,
+            "total": len(category_list)
+        }

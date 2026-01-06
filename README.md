@@ -109,13 +109,11 @@ Access PostgreSQL inside the Docker container
 docker exec -it library-db psql -U postgres -d library_db
 ```
 
-Insert initial manager data
-
 The initial manager account is defined in the following seed file:
-
+```powershell
 db/01_seed_manager.sql
+```
 ---
-
 
 ## Important environment variables
 

@@ -6,6 +6,7 @@ import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { BookSearch } from './pages/BookSearch';
 import { PublicBookBrowse } from './pages/PublicBookBrowse';
+import { LibraryPolicy } from './pages/LibraryPolicy';
 import { LibrarianDashboard } from './pages/LibrarianDashboard';
 import { ManagerDashboard } from './pages/ManagerDashboard';
 import { BorrowHistory } from './pages/BorrowHistory';
@@ -73,6 +74,7 @@ const App: React.FC = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/browse" element={<PublicBookBrowse />} />
+            <Route path="/policy" element={<LibraryPolicy />} />
 
             {/* Root Route - Smart Redirect */}
             <Route path="/" element={<RootRedirect />} />

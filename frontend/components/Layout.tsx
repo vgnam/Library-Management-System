@@ -168,9 +168,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div>
             <h4 className="font-black text-slate-900 mb-8 uppercase text-xs tracking-[0.2em]">Services</h4>
             <ul className="space-y-4 text-sm text-slate-500 font-bold">
-              <li><a href="#" className="hover:text-blue-600 transition-colors">Quick Search</a></li>
-              <li><a href="#" className="hover:text-blue-600 transition-colors">Online Borrowing</a></li>
-              <li><a href="#" className="hover:text-blue-600 transition-colors">Library Regulations</a></li>
+              <li><Link to="/" className="hover:text-blue-600 transition-colors">Quick Search</Link></li>
+              <li><Link to="/browse" className="hover:text-blue-600 transition-colors">Online Borrowing</Link></li>
+              <li><Link to="/policy" className="hover:text-blue-600 transition-colors">Library Regulations</Link></li>
             </ul>
           </div>
           <div>

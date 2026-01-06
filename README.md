@@ -95,7 +95,7 @@ Build and run:
 
 ```powershell
 cd D:\Library-Management-System
-docker compose up --build
+docker compose up
 ```
 
 Stop and remove volumes:

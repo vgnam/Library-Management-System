@@ -5,8 +5,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 
-# Use DATABASE_URL from settings (PostgreSQL)
-DATABASE_URL = settings.DATABASE_URL
+# Use get_database_url() method
+DATABASE_URL = settings.get_database_url()
 
 # Create SQLAlchemy engine
 engine = create_engine(

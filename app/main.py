@@ -17,7 +17,9 @@ Base.metadata.create_all(bind=engine)
 
 def get_application() -> FastAPI:
     application = FastAPI(
-        title=settings.PROJECT_NAME, docs_url="/docs", redoc_url='/re-docs',
+        title=settings.PROJECT_NAME, 
+        docs_url="/docs", 
+        redoc_url='/re-docs',
         openapi_url=f"{settings.API_PREFIX}/openapi.json",
         description='''
         Base frame with FastAPI micro framework + Postgresql
@@ -36,7 +38,7 @@ def get_application() -> FastAPI:
         allow_headers=["*"],
     )
 
-    application.add_middleware(DBSessionMiddleware, db_url=settings.DATABASE_URL)
+    application.add_middleware(DBSessionMiddleware, db_url=settings.get_database_url())
     application.include_router(router, prefix=settings.API_PREFIX)
     application.add_exception_handler(CustomException, http_exception_handler)
 

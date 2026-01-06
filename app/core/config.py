@@ -1,34 +1,41 @@
-
 # settings.py
 import os
 from pydantic import BaseSettings
-from typing import List
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Library Management System"
     API_PREFIX: str = "/api/v1"
 
-    # PostgreSQL default connection (override with env var DATABASE_URL)
-    DATABASE_USER: str = os.getenv("DATABASE_USER", "postgres")
-    DATABASE_PASSWORD: str = os.getenv("DATABASE_PASSWORD", "chinchin123@")
-    DATABASE_HOST: str = os.getenv("DATABASE_HOST", "db")
-    DATABASE_PORT: str = os.getenv("DATABASE_PORT", "5432")
-    DATABASE_NAME: str = os.getenv("DATABASE_NAME", "library_db")
+    # PostgreSQL connection variables
+    DATABASE_USER: str = "postgres"
+    DATABASE_PASSWORD: str = "chinchin123@"
+    DATABASE_HOST: str = "db"
+    DATABASE_PORT: str = "5432"
+    DATABASE_NAME: str = "library_db"
+    
+    # DATABASE_URL takes priority if set
+    DATABASE_URL: Optional[str] = None
 
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        f"postgresql://{os.getenv('DATABASE_USER','postgres')}:{os.getenv('DATABASE_PASSWORD','postgres')}@{os.getenv('DATABASE_HOST','db')}:{os.getenv('DATABASE_PORT','5432')}/{os.getenv('DATABASE_NAME','library_db')}"
-    )
-
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "supersecretkey")
+    SECRET_KEY: str = "supersecretkey"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_SECONDS: int = 3600
 
     BACKEND_CORS_ORIGINS: List[str] = ["*"]
 
-    ROOT_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # D:\Library-Management-System\app
-    LOGGING_CONFIG_FILE: str = os.path.join(os.path.dirname(ROOT_DIR), "logging.ini")  # D:\Library-Management-System\logging.ini
+    ROOT_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    LOGGING_CONFIG_FILE: str = os.path.join(os.path.dirname(ROOT_DIR), "logging.ini")
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+
+    def get_database_url(self) -> str:
+        """Return DATABASE_URL if set, otherwise build from components"""
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+        return f"postgresql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
 
 
 settings = Settings()

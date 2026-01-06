@@ -95,7 +95,7 @@ Build and run:
 
 ```powershell
 cd D:\Library-Management-System
-docker compose up --build
+docker compose up
 ```
 
 Stop and remove volumes:
@@ -104,8 +104,16 @@ Stop and remove volumes:
 docker compose down -v
 ```
 
----
+Access PostgreSQL inside the Docker container
+```powershell
+docker exec -it library-db psql -U postgres -d library_db
+```
 
+The initial manager account is defined in the following seed file:
+```powershell
+db/01_seed_manager.sql
+```
+---
 
 ## Important environment variables
 

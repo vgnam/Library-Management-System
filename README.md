@@ -104,6 +104,16 @@ Stop and remove volumes:
 docker compose down -v
 ```
 
+Access PostgreSQL inside the Docker container
+```powershell
+docker exec -it library-db psql -U postgres -d library_db
+```
+
+Insert initial manager data
+
+The initial manager account is defined in the following seed file:
+
+db/01_seed_manager.sql
 ---
 
 

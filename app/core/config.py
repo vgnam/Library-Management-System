@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     # PostgreSQL default connection (override with env var DATABASE_URL)
     DATABASE_USER: str = os.getenv("DATABASE_USER", "postgres")
-    DATABASE_PASSWORD: str = os.getenv("DATABASE_PASSWORD", "postgres")
+    DATABASE_PASSWORD: str = os.getenv("DATABASE_PASSWORD", "chinchin123@")
     DATABASE_HOST: str = os.getenv("DATABASE_HOST", "db")
     DATABASE_PORT: str = os.getenv("DATABASE_PORT", "5432")
     DATABASE_NAME: str = os.getenv("DATABASE_NAME", "library_db")

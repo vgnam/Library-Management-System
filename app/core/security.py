@@ -12,10 +12,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
+
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
-
+# print(get_password_hash("password123"))
+# $2b$12$qhdFFM6KPvYeC9/FQcD07ONtzjgpREdLys43Ou3euu19SIHTbxz/m
 def create_access_token(data: dict, expires_delta: Union[int, None] = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(seconds=settings.ACCESS_TOKEN_EXPIRE_SECONDS)

@@ -27,7 +27,11 @@ export const ReaderReturnRequest: React.FC = () => {
       setLoading(true);
       // Fetch currently borrowed books from the history API
       const response = await api.getCurrentlyBorrowed();
-      setActiveLoans(response.currently_borrowed_books || []);
+      // Only show books that are Active or Overdue
+      const filtered = (response.currently_borrowed_books || []).filter(
+        (b) => b.status === BorrowStatus.ACTIVE || b.status === BorrowStatus.OVERDUE
+      );
+      setActiveLoans(filtered);
       setCardStatus(response.card_status || 'Active');
     } catch (err: any) {
       if (err.message && err.message.includes('Session expired')) {
@@ -40,21 +44,18 @@ export const ReaderReturnRequest: React.FC = () => {
   };
 
   const handleReturnRequest = async (book: CurrentlyBorrowedBook) => {
-
     setProcessingId(book.borrow_detail_id);
     setError('');
     setSuccessMsg('');
-
     try {
       // Send POST request to backend
       await api.requestBookReturn({
         borrow_detail_id: book.borrow_detail_id
       });
-      // Refresh the list to reflect the new status (e.g., PendingReturn)
-      await fetchActiveLoans();
-
+      // Remove the requested book from the list immediately
+      setActiveLoans((prev) => prev.filter((b) => b.borrow_detail_id !== book.borrow_detail_id));
+      setSuccessMsg('Return request submitted successfully!');
     } catch (err: any) {
-      // Error notification
       Swal.fire({
         icon: 'error',
         title: 'Request Failed',

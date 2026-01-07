@@ -1,7 +1,7 @@
 # app/services/srv_manager.py
 from fastapi import HTTPException, status
 from fastapi_sqlalchemy import db
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_
 from typing import Dict, List
 from datetime import datetime, timedelta
 import uuid
@@ -62,7 +62,6 @@ class ManagerService:
             total_librarians = db.session.query(Librarian).count()
             
             # Borrowing statistics
-            total_borrows = db.session.query(BorrowSlipDetail).count()
             
             active_borrows = db.session.query(BorrowSlipDetail).filter(
                 BorrowSlipDetail.status.in_([
@@ -71,14 +70,22 @@ class ManagerService:
                     BorrowStatusEnum.pending_return
                 ])
             ).count()
-            
+            now = datetime.now()
             overdue_borrows = db.session.query(BorrowSlipDetail).filter(
-                BorrowSlipDetail.status == BorrowStatusEnum.overdue
+                or_(
+                    BorrowSlipDetail.status == BorrowStatusEnum.overdue,
+                    and_(
+                        BorrowSlipDetail.status.in_([BorrowStatusEnum.active, BorrowStatusEnum.pending_return]),
+                        BorrowSlipDetail.return_date < now
+                    )
+                )
             ).count()
             
             returned_borrows = db.session.query(BorrowSlipDetail).filter(
                 BorrowSlipDetail.status == BorrowStatusEnum.returned
             ).count()
+
+            total_borrows = active_borrows + returned_borrows
             
             # Infraction statistics
             total_infractions = db.session.query(

@@ -99,13 +99,13 @@ class HistoryService:
             days_overdue = 0
 
             # Calculate overdue status based on current status and dates
-            if detail_status == "active":
+            if detail_status in ["active", "pendingreturn", "pending_return"]:
                 if due_date and now > due_date:
-                    display_status = "Overdue"
+                    display_status = "Overdue" if detail_status == "active" else "Pending Return"
                     is_overdue = True
                     days_overdue = (now.date() - due_date.date()).days
                 else:
-                    display_status = "Active"
+                    display_status = "Active" if detail_status == "active" else "Pending Return"
 
             elif detail_status == "returned":
                 display_status = "Returned"
@@ -113,13 +113,6 @@ class HistoryService:
                 if actual_return and due_date and actual_return > due_date:
                     is_overdue = True
                     days_overdue = (actual_return.date() - due_date.date()).days
-
-            elif detail_status == "pendingreturn" or detail_status == "pending_return":
-                display_status = "Pending Return"
-                # Check if it's overdue even while pending return
-                if due_date and now > due_date:
-                    is_overdue = True
-                    days_overdue = (now.date() - due_date.date()).days
 
             elif detail_status == "pending":
                 display_status = "Pending"

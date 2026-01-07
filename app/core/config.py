@@ -58,5 +58,8 @@ class Settings(BaseSettings):
     ROOT_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # D:\Library-Management-System\app
     LOGGING_CONFIG_FILE: str = os.path.join(os.path.dirname(ROOT_DIR), "logging.ini")  # D:\Library-Management-System\logging.ini
 
+    def get_database_url(self):
+        return self.DATABASE_URL
+
 
 settings = Settings()

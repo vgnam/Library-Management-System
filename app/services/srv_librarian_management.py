@@ -170,10 +170,10 @@ class LibrarianManagementService:
                 book = detail.book
                 book_title_obj = book.book_title
 
-                # Check if overdue
+                # Check if overdue for both Active and PendingReturn
                 is_overdue = False
                 days_overdue = 0
-                if detail.return_date and not detail.real_return_date:
+                if detail.status in [BorrowStatusEnum.active, BorrowStatusEnum.pending_return] and detail.return_date and not detail.real_return_date:
                     days_overdue = (datetime.now() - detail.return_date).days
                     is_overdue = days_overdue > 0
 
@@ -257,15 +257,16 @@ class LibrarianManagementService:
             card = reader.reading_card
             old_status = card.status.value
 
-            # Check if card is actually banned/suspended
-            if card.status not in [CardStatusEnum.suspended, CardStatusEnum.blocked]:
+            # Only allow unblocking if card is Blocked
+            if card.status != CardStatusEnum.blocked:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Card is not banned or suspended. Current status: {old_status}"
+                    detail=f"Card is not blocked. Current status: {old_status}"
                 )
 
-            # Remove ban by setting status to Active
+            # Remove block by setting status to Active and reset infraction_count
             card.status = CardStatusEnum.active
+            card.infraction_count = 0
             db.session.commit()
 
             message = f"Successfully removed ban for user {user.username}"
@@ -360,9 +361,9 @@ class LibrarianManagementService:
                 book_title = book.book_title if book else None
                 penalty = detail.penalty if detail.penalty else None
                 
-                # Calculate if overdue
+                # Calculate if overdue for both Active and PendingReturn
                 is_overdue = False
-                if detail.status == BorrowStatusEnum.active and detail.return_date:
+                if detail.status in [BorrowStatusEnum.active, BorrowStatusEnum.pending_return] and detail.return_date:
                     is_overdue = datetime.now() > detail.return_date
                 
                 record = {

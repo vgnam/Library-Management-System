@@ -288,8 +288,8 @@ export const ReturnBook: React.FC = () => {
                         </div>
                         <p className="text-xs text-red-600">
                           {book.penalty.days_overdue <= 30 
-                            ? `${book.penalty.days_overdue} days × 5,000 VND`
-                            : `(${book.penalty.days_overdue} days × 5,000) + Book price ${book.penalty.book_price ? book.penalty.book_price.toLocaleString('vi-VN') : '0'} VND`
+                            ? `${book.penalty.days_overdue} days × 5,000 VND = ${book.penalty.fine_amount.toLocaleString('vi-VN')} VND`
+                            : `(${book.penalty.days_overdue} days × 5,000) + Book price ${book.penalty.book_price ? book.penalty.book_price.toLocaleString('vi-VN') : '0'} VND = ${book.penalty.fine_amount.toLocaleString('vi-VN')} VND`
                           }
                         </p>
                       </div>

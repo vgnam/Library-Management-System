@@ -60,15 +60,15 @@ export const LibrarianDashboard: React.FC = () => {
   };
 
   const handleQuickReturn = async (returnReq: ReturnRequest) => {
-    // Tính toán penalty nếu overdue
-    const today = new Date();
-    const dueDate = returnReq.due_date ? new Date(returnReq.due_date) : null;
+    // Sử dụng penalty từ backend
     let penaltyInfo = '';
     
-    if (dueDate && today > dueDate) {
-      const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-      const lateFee = daysOverdue * 5000;
-      penaltyInfo = `<br><span style="color: #dc2626; font-weight: 600;">Late Fee: ${lateFee.toLocaleString('vi-VN')} VND (${daysOverdue} day${daysOverdue > 1 ? 's' : ''} overdue)</span>`;
+    if (returnReq.penalty && returnReq.penalty.is_overdue) {
+      const { fine_amount, days_overdue, book_price } = returnReq.penalty;
+      const formula = days_overdue <= 30 
+        ? `${days_overdue} days × 5,000 VND`
+        : `(${days_overdue} days × 5,000) + Book price ${book_price ? book_price.toLocaleString('vi-VN') : '0'} VND`;
+      penaltyInfo = `<br><span style="color: #dc2626; font-weight: 600;">Late Fee: ${fine_amount.toLocaleString('vi-VN')} VND</span><br><span style="color: #991b1b; font-size: 0.875rem;">${formula}</span>`;
     }
   
     const result = await Swal.fire({
@@ -238,18 +238,11 @@ export const LibrarianDashboard: React.FC = () => {
             ) : (
               <div className="grid gap-4">
                 {returnRequests.map((req) => {
-                  // Tính penalty nếu overdue
-                  const today = new Date();
-                  const dueDate = req.due_date ? new Date(req.due_date) : null;
-                  let isOverdue = false;
-                  let daysOverdue = 0;
-                  let lateFee = 0;
-                  
-                  if (dueDate && today > dueDate) {
-                    isOverdue = true;
-                    daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-                    lateFee = daysOverdue * 5000;
-                  }
+                  // Sử dụng penalty từ backend
+                  const isOverdue = req.penalty?.is_overdue || false;
+                  const daysOverdue = req.penalty?.days_overdue || 0;
+                  const lateFee = req.penalty?.fine_amount || 0;
+                  const bookPrice = req.penalty?.book_price || null;
 
                   return (
                     <div key={req.borrow_detail_id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 transition hover:shadow-md flex flex-col md:flex-row justify-between gap-4">
@@ -285,12 +278,15 @@ export const LibrarianDashboard: React.FC = () => {
                           <div className="bg-red-50 border border-red-200 rounded-md p-3 mt-2">
                             <div className="flex items-start gap-2">
                               <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                              <div>
+                              <div className="flex-1">
                                 <p className="text-sm font-semibold text-red-900">
-                                  Overdue Penalty
+                                  Overdue Penalty: <span className="font-bold">{lateFee.toLocaleString('vi-VN')} VND</span>
                                 </p>
                                 <p className="text-xs text-red-700 mt-0.5">
-                                  {daysOverdue} day{daysOverdue > 1 ? 's' : ''} late • <span className="font-bold">{lateFee.toLocaleString('vi-VN')} VND</span>
+                                  {daysOverdue <= 30 
+                                    ? `${daysOverdue} days × 5,000 VND = ${lateFee.toLocaleString('vi-VN')} VND`
+                                    : `(${daysOverdue} days × 5,000) + Book price ${bookPrice ? bookPrice.toLocaleString('vi-VN') : '0'} VND = ${lateFee.toLocaleString('vi-VN')} VND`
+                                  }
                                 </p>
                               </div>
                             </div>

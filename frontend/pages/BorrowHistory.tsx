@@ -410,6 +410,12 @@ export const BorrowHistory: React.FC = () => {
                               {record.penalty.real_time_calculated && record.penalty.status === 'Pending' && (
                                 <span className="ml-1 text-orange-600 font-medium">(Updates daily)</span>
                               )}
+                              {/* Hiển thị công thức tính cho sách muộn > 30 ngày */}
+                              {record.penalty.penalty_type === 'Late' && record.penalty.days_overdue > 30 && (
+                                <div className="mt-1 text-xs text-red-700 font-medium">
+                                  Formula: ({record.penalty.days_overdue} days × 5,000) + Book price
+                                </div>
+                              )}
                             </div>
                             <div className="flex items-center gap-1.5">
                               {/* Only show status badge if not returned or if paid/cancelled */}

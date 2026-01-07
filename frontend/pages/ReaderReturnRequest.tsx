@@ -168,10 +168,16 @@ export const ReaderReturnRequest: React.FC = () => {
                     {/* Hiển thị tiền phạt */}
                     {book.penalty && book.penalty.is_overdue && (
                       <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <div className="flex items-center gap-2 text-red-800 font-bold text-sm">
+                        <div className="flex items-center gap-2 text-red-800 font-bold text-sm mb-1">
                           <DollarSign className="h-4 w-4" />
                           Late Fee: {book.penalty.fine_amount.toLocaleString('vi-VN')} VND
                         </div>
+                        <p className="text-xs text-red-600">
+                          {book.penalty.days_overdue <= 30 
+                            ? `${book.penalty.days_overdue} days × 5,000 VND = ${book.penalty.fine_amount.toLocaleString('vi-VN')} VND`
+                            : `(${book.penalty.days_overdue} days × 5,000) + Book price ${book.penalty.book_price ? book.penalty.book_price.toLocaleString('vi-VN') : '0'} VND = ${book.penalty.fine_amount.toLocaleString('vi-VN')} VND`
+                          }
+                        </p>
                       </div>
                     )}
                   </div>

@@ -180,6 +180,12 @@ export interface ReturnRequest {
   reader_name: string;
   request_date: string;
   due_date: string;
+  penalty?: {
+    is_overdue: boolean;
+    days_overdue: number;
+    fine_amount: number;
+    book_price: number | null;
+  };
 }
 
 // Reader initiates return

@@ -21,7 +21,8 @@ export const BookAcquisition: React.FC = () => {
     author: '',
     isbn: '',
     category: '',
-    publisher_id: ''
+    publisher_id: '',
+    price: 0
   });
   
   // Acquisition items
@@ -79,8 +80,8 @@ export const BookAcquisition: React.FC = () => {
   };
 
   const handleCreateNewBookTitle = async () => {
-    if (!newBookTitle.name || !newBookTitle.author || !newBookTitle.isbn || !newBookTitle.category || !newBookTitle.publisher_id) {
-      setError('Please fill all book title fields');
+    if (!newBookTitle.name || !newBookTitle.author || !newBookTitle.isbn || !newBookTitle.category || !newBookTitle.publisher_id || newBookTitle.price < 0) {
+      setError('Please fill all book title fields and enter a valid price');
       return;
     }
     
@@ -97,7 +98,8 @@ export const BookAcquisition: React.FC = () => {
       setCurrentItem({
         ...currentItem,
         book_title_id: bookTitleData.book_title_id,
-        book_name: bookTitleData.name
+        book_name: bookTitleData.name,
+        price: newBookTitle.price
       });
       
       // Reset form
@@ -106,7 +108,8 @@ export const BookAcquisition: React.FC = () => {
         author: '',
         isbn: '',
         category: '',
-        publisher_id: ''
+        publisher_id: '',
+        price: 0
       });
       setShowNewBookForm(false);
       
@@ -372,6 +375,14 @@ export const BookAcquisition: React.FC = () => {
                     </option>
                   ))}
                 </select>
+                <input
+                  type="number"
+                  className="border rounded px-3 py-2"
+                  placeholder="Price (VND) *"
+                  min="0"
+                  value={newBookTitle.price}
+                  onChange={(e) => setNewBookTitle({ ...newBookTitle, price: parseInt(e.target.value) || 0 })}
+                />
                 <div className="col-span-2">
                   <Button onClick={handleCreateNewBookTitle} disabled={loading}>
                     Create Book Title

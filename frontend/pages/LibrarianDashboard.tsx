@@ -247,7 +247,7 @@ export const LibrarianDashboard: React.FC = () => {
                   
                   if (dueDate && today > dueDate) {
                     isOverdue = true;
-                    daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+                    daysOverdue = Math.floor((today.getDate() - dueDate.getDate()) / (1000 * 60 * 60 * 24));
                     lateFee = daysOverdue * 5000;
                   }
 

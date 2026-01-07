@@ -283,7 +283,7 @@ export const BookManagement: React.FC = () => {
             </div>
             <div className="bg-orange-50 border border-orange-200 rounded p-3 mb-4">
               <p className="text-sm text-orange-800">
-                <strong>Editing:</strong> {editingBook.name} (ID: {editingBook.book_title_id})
+                <strong>Editing:</strong> {editingBook.name} 
               </p>
             </div>
             <div className="grid grid-cols-2 gap-4">

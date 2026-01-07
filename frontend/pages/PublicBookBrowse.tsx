@@ -117,14 +117,6 @@ export const PublicBookBrowse: React.FC = () => {
                 <p className="text-lg font-black text-gray-900">Login or Register</p>
               </div>
             </div>
-            <div className="flex gap-3">
-              <Button onClick={() => navigate('/login')} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold">
-                <LogIn className="w-4 h-4 mr-2" /> Login
-              </Button>
-              <Button onClick={() => navigate('/register')} variant="secondary" className="border-2 border-gray-200 hover:border-blue-600 px-6 py-3 rounded-xl font-bold">
-                <UserPlus className="w-4 h-4 mr-2" /> Register
-              </Button>
-            </div>
           </div>
         </div>
       </section>

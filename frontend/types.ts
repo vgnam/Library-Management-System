@@ -48,6 +48,7 @@ export interface User {
 export interface BookSearchResult {
   id?: string; // Mapped ID
   book_title_id?: string; // Raw DB ID
+  isbn?: string;
   name: string;
   author: string;
   publisher: string;

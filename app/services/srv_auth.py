@@ -27,10 +27,14 @@ from app.core.security import (
 )
 from app.schemas.sche_base import DataResponse
 
+# Import trigger system
+from app.core.dependencies import TriggerRegistry
+
 import pytz
 from app.core.config import settings
 
 tz_vn = pytz.timezone("Asia/Ho_Chi_Minh")
+
 
 class AuthService:
     def __init__(self):
@@ -104,21 +108,23 @@ class AuthService:
             user.last_login = datetime.utcnow()
             db.session.commit()
 
-            # Kích hoạt check infractions cho TẤT CẢ readers khi bất kỳ ai đăng nhập
-            try:
-                from app.core.dependencies import check_all_readers_infractions
-                check_all_readers_infractions()
-            except Exception as e:
-                print(f"Warning: Failed to check infractions: {e}")
+            # =====================================================
+            # TRIGGER SYSTEM - Replaces manual dependency calls
+            # =====================================================
 
-            # Tự động update penalty descriptions khi manager hoặc librarian đăng nhập
-            if role.lower() in ['manager', 'librarian']:
-                try:
-                    from app.services.srv_penalty import PenaltyService
-                    PenaltyService.update_all_penalty_descriptions()
-                except Exception as e:
-                    # Log error nhưng không fail login
-                    print(f"Warning: Failed to update penalty descriptions: {e}")
+            # Fire "on_any_login" trigger - checks ALL readers' infractions
+            # This replaces: check_all_readers_infractions()
+            TriggerRegistry.fire('on_any_login', user=user, role=role)
+
+            # Fire role-specific triggers
+            if role.lower() == 'manager':
+                # Fires: update_all_penalty_descriptions()
+                TriggerRegistry.fire('on_manager_login', user=user)
+            elif role.lower() == 'librarian':
+                # Fires: update_all_penalty_descriptions()
+                TriggerRegistry.fire('on_librarian_login', user=user)
+            elif role.lower() == 'reader':
+                TriggerRegistry.fire('on_reader_login', user=user)
 
             # Generate token
             token_data = {

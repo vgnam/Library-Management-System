@@ -1,24 +1,17 @@
 """
-Service for borrowing history queries and overdue checks
-NOTE:
-- BorrowSlipDetail.return_date = DUE date (when book should be returned)
-- BorrowSlip.return_date = ACTUAL return date (when book was returned)
+Service for borrowing history queries using optimized views
 """
 from datetime import datetime
 from typing import Optional
 from fastapi_sqlalchemy import db
 from fastapi import HTTPException
-import sqlalchemy as sa
+from sqlalchemy import text
 import pytz
 
-from app.models.model_borrow import BorrowSlip, BorrowSlipDetail, BorrowStatusEnum
-from app.models.model_book import Book
 from app.models.model_reader import Reader
-from app.models.model_penalty import PenaltySlip, PenaltyStatusEnum
 
 
 class HistoryService:
-
 
     @staticmethod
     def get_borrow_history(
@@ -27,163 +20,84 @@ class HistoryService:
             page: int = 1,
             page_size: int = 10
     ) -> dict:
+        """Get borrow history using optimized view (NO N+1 problem!)"""
 
-        reader = db.session.query(Reader).filter(
-            Reader.reader_id == reader_id
-        ).first()
-
+        # Verify reader exists
+        reader = db.session.query(Reader).filter(Reader.reader_id == reader_id).first()
         if not reader:
             raise HTTPException(status_code=404, detail="Reader not found")
 
-        # ===========================================================
-        # QUERY HISTORY
-        # ===========================================================
-        query = db.session.query(
-            BorrowSlip.bs_id,
-            BorrowSlip.borrow_date,
-            BorrowSlipDetail.real_return_date.label('actual_return_date'),
-            BorrowSlipDetail.id,
-            BorrowSlipDetail.book_id,
-            BorrowSlipDetail.return_date.label('detail_due_date'),
-            sa.cast(BorrowSlipDetail.status, sa.String).label('detail_status_str')
-        ).select_from(BorrowSlip).join(
-            BorrowSlipDetail, BorrowSlip.bs_id == BorrowSlipDetail.borrow_slip_id
-        ).filter(BorrowSlip.reader_id == reader_id)
+        # Build query with optional status filter
+        where_clause = "WHERE reader_id = :reader_id"
+        params = {
+            "reader_id": reader_id,
+            "offset": (page - 1) * page_size,
+            "limit": page_size
+        }
 
-        # Optional status filter (user wants)
-        if status:
-            query = query.filter(BorrowSlipDetail.status == status.lower())
+        if status and status.lower() != 'all':
+            where_clause += " AND detail_status = :status"
+            params["status"] = status.capitalize()
 
-        total = query.count()
-        raw_results = query.order_by(
-            BorrowSlip.borrow_date.desc()
-        ).offset(
-            (page - 1) * page_size
-        ).limit(
-            page_size
-        ).all()
+        # Count total
+        count_query = text(f"""
+            SELECT COUNT(*) as total
+            FROM vw_borrow_history
+            {where_clause}
+        """)
+        count_result = db.session.execute(count_query, params)
+        total = count_result.fetchone()[0]
 
-        # Load book metadata only once
-        book_ids = [r.book_id for r in raw_results]
-        books = db.session.query(Book).filter(Book.book_id.in_(book_ids)).all()
-        book_dict = {b.book_id: b for b in books}
+        # Get data
+        data_query = text(f"""
+            SELECT *
+            FROM vw_borrow_history
+            {where_clause}
+            ORDER BY borrow_date DESC
+            OFFSET :offset ROWS
+            FETCH NEXT :limit ROWS ONLY
+        """)
 
-        # Load penalties for all borrow details
-        detail_ids = [r.id for r in raw_results]
-        penalties = db.session.query(PenaltySlip).filter(
-            PenaltySlip.borrow_detail_id.in_(detail_ids)
-        ).all()
-        penalty_dict = {p.borrow_detail_id: p for p in penalties}
+        result = db.session.execute(data_query, params)
+        rows = result.fetchall()
 
-        # ===========================================================
-        # BUILD RESPONSE
-        # ===========================================================
+        # Build response (all data already in view!)
         tz = pytz.timezone("Asia/Ho_Chi_Minh")
-        now = datetime.now(tz)
-
         history = []
-        for r in raw_results:
-            book = book_dict.get(r.book_id)
-            detail_status = r.detail_status_str.lower()
-            due_date = r.detail_due_date
-            actual_return = r.actual_return_date
 
-            # Ensure datetime objects are timezone-aware for comparison
-            if due_date and due_date.tzinfo is None:
-                due_date = tz.localize(due_date)
-            if actual_return and actual_return.tzinfo is None:
-                actual_return = tz.localize(actual_return)
+        for row in rows:
+            r = dict(row._mapping)
 
-            display_status = detail_status.capitalize()
-            is_overdue = False
-            days_overdue = 0
-
-            # Calculate overdue status based on current status and dates
-            if detail_status in ["active", "pendingreturn", "pending_return"]:
-                if due_date and now > due_date:
-                    display_status = "Overdue" if detail_status == "active" else "Pending Return"
-                    is_overdue = True
-                    days_overdue = (now.date() - due_date.date()).days
-                else:
-                    display_status = "Active" if detail_status == "active" else "Pending Return"
-
-            elif detail_status == "returned":
-                display_status = "Returned"
-                # Check if it was returned late
-                if actual_return and due_date and actual_return > due_date:
-                    is_overdue = True
-                    days_overdue = (actual_return.date() - due_date.date()).days
-
-            elif detail_status == "pending":
-                display_status = "Pending"
-
-            elif detail_status == "lost":
-                display_status = "Lost"
-
-            elif detail_status == "rejected":
-                display_status = "Rejected"
-
-            elif detail_status == "overdue":
-                display_status = "Overdue"
-                is_overdue = True
-                if due_date:
-                    days_overdue = (now.date() - due_date.date()).days
-
-            # Get penalty info
-            penalty = penalty_dict.get(r.id)
+            # Calculate fine if overdue
             penalty_info = None
-            if penalty:
-                from app.services.srv_penalty import PenaltyService, PenaltyTypeEnum
-                import re
-
-                if penalty.penalty_type == PenaltyTypeEnum.late and due_date:
-                    # Lấy giá sách từ book_title
-                    book_price = None
-                    if book and book.book_title and book.book_title.price:
-                        book_price = float(book.book_title.price)
-                    
-                    fine_calc = PenaltyService.calculate_current_late_fine(
-                        due_date=due_date,
-                        return_date=actual_return,
-                        book_price=book_price
-                    )
-                    fine_amount = fine_calc["fine_amount"]
-                    days_overdue_from_penalty = fine_calc["days_overdue"]
-                else:
-                    fine_match = re.search(r'(?:Fine|Compensation):\s*([\d,]+)\s*VND', penalty.description or '')
-                    fine_amount = int(fine_match.group(1).replace(',', '')) if fine_match else 0
-                    days_overdue_from_penalty = 0
-
+            if r['penalty_id']:
+                # Penalty exists in database
                 penalty_info = {
-                    "penalty_id": penalty.penalty_id,
-                    "penalty_type": penalty.penalty_type.value,
-                    "description": penalty.description,
-                    "fine_amount": fine_amount,
-                    "days_overdue": days_overdue_from_penalty,
-                    "status": penalty.status.value,
-                    "real_time_calculated": penalty.penalty_type == PenaltyTypeEnum.late
+                    "penalty_id": r['penalty_id'],
+                    "penalty_type": r['penalty_type'],
+                    "description": r['penalty_description'],
+                    "status": r['penalty_status'],
+                    "days_overdue": r['days_overdue'],
+                    "real_time_calculated": False
                 }
-            elif is_overdue and days_overdue > 0:
-                # No penalty record exists yet, but book is overdue - show potential penalty
+            elif r['is_overdue'] and r['days_overdue'] > 0:
+                # No penalty record yet, calculate estimated fine
                 from app.services.srv_penalty import FINE_RATES
-                
-                # Lấy giá sách
-                book_price = None
-                if book and book.book_title and book.book_title.price:
-                    book_price = float(book.book_title.price)
-                
-                # Tính tiền phạt theo công thức mới
+
+                days_overdue = r['days_overdue']
+                book_price = float(r['book_price']) if r['book_price'] else None
+
                 base_fine = days_overdue * FINE_RATES["late_per_day"]
                 if days_overdue > FINE_RATES["late_threshold_days"] and book_price:
-                    potential_fine = base_fine + book_price
+                    estimated_fine = base_fine + book_price
                 else:
-                    potential_fine = base_fine
-                
+                    estimated_fine = base_fine
+
                 penalty_info = {
                     "penalty_id": None,
                     "penalty_type": "Late",
-                    "description": f"Overdue: {days_overdue} days. Estimated fine: {int(potential_fine):,} VND",
-                    "fine_amount": int(potential_fine),
+                    "description": f"Overdue: {days_overdue} days. Estimated fine: {int(estimated_fine):,} VND",
+                    "fine_amount": int(estimated_fine),
                     "days_overdue": days_overdue,
                     "status": "Pending",
                     "real_time_calculated": True,
@@ -191,29 +105,28 @@ class HistoryService:
                 }
 
             history.append({
-                "borrow_slip_id": r.bs_id,
-                "borrow_detail_id": r.id,
-                "borrow_date": r.borrow_date.isoformat(),
-                "due_date": due_date.isoformat() if due_date else None,
-                "actual_return_date": actual_return.isoformat() if actual_return else None,
-                "status": display_status,
+                "borrow_slip_id": r['bs_id'],
+                "borrow_detail_id": r['borrow_detail_id'],
+                "borrow_date": r['borrow_date'].isoformat(),
+                "due_date": r['due_date'].isoformat() if r['due_date'] else None,
+                "actual_return_date": r['actual_return_date'].isoformat() if r['actual_return_date'] else None,
+                "status": r['display_status'],
                 "penalty": penalty_info,
                 "book": {
-                    "book_id": r.book_id,
-                    "title": book.book_title.name if book and book.book_title else "Unknown",
-                    "author": book.book_title.author if book and book.book_title else None,
-                    "due_date": due_date.isoformat() if due_date else None,
-                    "actual_return_date": actual_return.isoformat() if actual_return else None,
-                    "is_returned": detail_status == "returned",
-                    "is_overdue": is_overdue,
-                    "days_overdue": days_overdue,
-                    "status": display_status
+                    "book_id": r['book_id'],
+                    "title": r['book_title'] or "Unknown",
+                    "author": r['author'],
+                    "category": r['category'],
+                    "publisher": r['publisher_name'],
+                    "due_date": r['due_date'].isoformat() if r['due_date'] else None,
+                    "actual_return_date": r['actual_return_date'].isoformat() if r['actual_return_date'] else None,
+                    "is_returned": r['detail_status'] == 'Returned',
+                    "is_overdue": bool(r['is_overdue']),
+                    "days_overdue": r['days_overdue'],
+                    "status": r['display_status']
                 }
             })
 
-        # ===========================================================
-        # RETURN JSON
-        # ===========================================================
         return {
             "total": total,
             "page": page,
@@ -224,62 +137,46 @@ class HistoryService:
 
     @staticmethod
     def get_overdue_books(reader_id: str) -> dict:
-        """Get currently overdue books by comparing due_date with current date."""
+        """Get currently overdue books using view"""
+
         reader = db.session.query(Reader).filter(Reader.reader_id == reader_id).first()
         if not reader:
             raise HTTPException(status_code=404, detail="Reader not found")
 
-        tz = pytz.timezone("Asia/Ho_Chi_Minh")
-        now = datetime.now(tz)
+        query = text("""
+            SELECT 
+                borrow_detail_id,
+                borrow_slip_id,
+                book_id,
+                book_title,
+                author,
+                borrow_date,
+                due_date,
+                days_overdue,
+                display_status
+            FROM vw_currently_borrowed
+            WHERE reader_id = :reader_id
+              AND is_overdue = 1
+            ORDER BY days_overdue DESC
+        """)
 
-        # Query books with status Active or PendingReturn (not already marked as Overdue)
-        raw_results = db.session.query(
-            BorrowSlipDetail.id,
-            BorrowSlipDetail.borrow_slip_id,
-            BorrowSlipDetail.book_id,
-            BorrowSlipDetail.return_date.label('detail_due_date'),
-            BorrowSlip.borrow_date,
-            sa.cast(BorrowSlipDetail.status, sa.String).label('detail_status_str')
-        ).join(
-            BorrowSlip, BorrowSlip.bs_id == BorrowSlipDetail.borrow_slip_id
-        ).filter(
-            BorrowSlip.reader_id == reader_id,
-            BorrowSlipDetail.status.in_([
-                BorrowStatusEnum.active,
-                BorrowStatusEnum.pending_return,
-                BorrowStatusEnum.overdue  # Also include already marked overdue
-            ])
-        ).all()
+        result = db.session.execute(query, {"reader_id": reader_id})
+        rows = result.fetchall()
 
-        # Load book metadata
-        book_ids = [r.book_id for r in raw_results]
-        books = db.session.query(Book).filter(Book.book_id.in_(book_ids)).all()
-        book_dict = {b.book_id: b for b in books}
-
-        # Filter overdue books by comparing due_date with current time
         overdue_books = []
-        for r in raw_results:
-            due_date = r.detail_due_date
-
-            # Localize due_date if it's naive
-            if due_date and due_date.tzinfo is None:
-                due_date = tz.localize(due_date)
-
-            if due_date and now > due_date:
-                book = book_dict.get(r.book_id)
-                days_overdue = (now.date() - due_date.date()).days
-                
-                overdue_books.append({
-                    "borrow_detail_id": r.id,
-                    "borrow_slip_id": r.borrow_slip_id,
-                    "book_id": r.book_id,
-                    "title": book.book_title.name if book and book.book_title else "Unknown",
-                    "author": book.book_title.author if book and book.book_title else None,
-                    "borrow_date": r.borrow_date.isoformat(),
-                    "due_date": due_date.isoformat(),
-                    "days_overdue": days_overdue,
-                    "status": "Overdue"
-                })
+        for row in rows:
+            r = dict(row._mapping)
+            overdue_books.append({
+                "borrow_detail_id": r['borrow_detail_id'],
+                "borrow_slip_id": r['borrow_slip_id'],
+                "book_id": r['book_id'],
+                "title": r['book_title'],
+                "author": r['author'],
+                "borrow_date": r['borrow_date'].isoformat(),
+                "due_date": r['due_date'].isoformat(),
+                "days_overdue": r['days_overdue'],
+                "status": r['display_status']
+            })
 
         return {
             "total_overdue": len(overdue_books),
@@ -288,116 +185,77 @@ class HistoryService:
 
     @staticmethod
     def get_currently_borrowed_books(reader_id: str) -> dict:
-        """Get books currently being borrowed (status = Active, Overdue, or PendingReturn)"""
+        """Get books currently being borrowed using view"""
+
         reader = db.session.query(Reader).filter(Reader.reader_id == reader_id).first()
         if not reader:
             raise HTTPException(status_code=404, detail="Reader not found")
 
-        # Get card type from reading card
-        from app.models.model_reading_card import ReadingCard, CardStatusEnum
-        reading_card = db.session.query(ReadingCard).filter(
-            ReadingCard.reader_id == reader_id
-        ).first()
+        query = text("""
+            SELECT 
+                borrow_detail_id,
+                borrow_slip_id,
+                book_id,
+                book_title,
+                author,
+                category,
+                borrow_date,
+                due_date,
+                display_status,
+                is_overdue,
+                days_overdue,
+                estimated_fine,
+                card_type,
+                card_status,
+                book_price
+            FROM vw_currently_borrowed
+            WHERE reader_id = :reader_id
+            ORDER BY borrow_date DESC
+        """)
 
-        card_type = reading_card.card_type.value if reading_card and reading_card.card_type else "Standard"
-        max_books = 8 if card_type == "VIP" else 5
+        result = db.session.execute(query, {"reader_id": reader_id})
+        rows = result.fetchall()
 
-        # ========================================
-        # Get current borrowed books
-        # ========================================
-        raw_results = db.session.query(
-            BorrowSlipDetail.id,
-            BorrowSlipDetail.borrow_slip_id,
-            BorrowSlipDetail.book_id,
-            BorrowSlipDetail.return_date.label('detail_due_date'),
-            BorrowSlip.borrow_date,
-            BorrowSlipDetail.real_return_date.label('actual_return_date'),
-            sa.cast(BorrowSlipDetail.status, sa.String).label('detail_status_str')
-        ).join(
-            BorrowSlip, BorrowSlip.bs_id == BorrowSlipDetail.borrow_slip_id
-        ).filter(
-            BorrowSlip.reader_id == reader_id,
-            BorrowSlipDetail.status.in_([
-                BorrowStatusEnum.active,
-                BorrowStatusEnum.overdue,
-                BorrowStatusEnum.pending_return
-            ])
-        ).all()
-
-        book_ids = [result.book_id for result in raw_results]
-        books = db.session.query(Book).filter(Book.book_id.in_(book_ids)).all()
-        book_dict = {b.book_id: b for b in books}
-        has_overdue = any(result.detail_status_str.lower() == 'overdue' for result in raw_results)
-
-        tz = pytz.timezone("Asia/Ho_Chi_Minh")
-        now = datetime.now(tz)
-        
         currently_borrowed_books = []
-        for result in raw_results:
-            book = book_dict.get(result.book_id)
-            detail_status = result.detail_status_str.lower()
-            
-            due_date = result.detail_due_date
-            if due_date and due_date.tzinfo is None:
-                due_date = tz.localize(due_date)
+        has_overdue = False
 
-            # Determine display status
-            if detail_status == "pendingreturn":
-                display_status = "Pending Return"
-            elif detail_status == "overdue":
-                display_status = "Overdue"
-            else:
-                display_status = "Active"
-            
-            # Tính is_overdue và days_overdue
-            is_overdue = False
-            days_overdue = 0
-            if due_date and now > due_date:
-                is_overdue = True
-                days_overdue = (now.date() - due_date.date()).days
-            
+        for row in rows:
+            r = dict(row._mapping)
+
+            is_overdue = bool(r['is_overdue'])
+            if is_overdue:
+                has_overdue = True
+
             book_item = {
-                "borrow_detail_id": result.id,
-                "borrow_slip_id": result.borrow_slip_id,
-                "book_id": result.book_id,
-                "title": book.book_title.name if book and book.book_title else "Unknown",
-                "author": book.book_title.author if book and book.book_title else None,
-                "borrow_date": result.borrow_date.isoformat(),
-                "due_date": result.detail_due_date.isoformat() if result.detail_due_date else None,
-                "status": display_status,
+                "borrow_detail_id": r['borrow_detail_id'],
+                "borrow_slip_id": r['borrow_slip_id'],
+                "book_id": r['book_id'],
+                "title": r['book_title'],
+                "author": r['author'],
+                "category": r['category'],
+                "borrow_date": r['borrow_date'].isoformat(),
+                "due_date": r['due_date'].isoformat() if r['due_date'] else None,
+                "status": r['display_status'],
                 "is_overdue": is_overdue,
-                "days_overdue": days_overdue
+                "days_overdue": r['days_overdue']
             }
-            
-            # Tính tiền phạt nếu muộn
-            if is_overdue and days_overdue > 0:
-                # Lấy giá sách
-                book_price = None
-                if book and book.book_title and book.book_title.price:
-                    book_price = float(book.book_title.price)
-                
-                # Tính tiền phạt
-                from app.services.srv_penalty import FINE_RATES
-                base_fine = days_overdue * FINE_RATES["late_per_day"]
-                if days_overdue > FINE_RATES["late_threshold_days"] and book_price:
-                    total_fine = base_fine + book_price
-                else:
-                    total_fine = base_fine
-                
+
+            # Add penalty info if overdue
+            if is_overdue and r['days_overdue'] > 0:
                 book_item["penalty"] = {
                     "is_overdue": True,
-                    "days_overdue": days_overdue,
-                    "fine_amount": int(total_fine),
-                    "book_price": book_price
+                    "days_overdue": r['days_overdue'],
+                    "fine_amount": int(r['estimated_fine']),
+                    "book_price": float(r['book_price']) if r['book_price'] else None
                 }
-            
+
             currently_borrowed_books.append(book_item)
 
         total_borrowed = len(currently_borrowed_books)
+        card_type = rows[0]['card_type'] if rows else "Standard"
+        card_status = rows[0]['card_status'] if rows else "Active"
+        max_books = 8 if card_type == "VIP" else 5
         remaining_slots = max_books - total_borrowed
-
-        # Get card status
-        card_status = reading_card.status.value if reading_card and reading_card.status else "Active"
 
         return {
             "total_borrowed": total_borrowed,
@@ -411,46 +269,45 @@ class HistoryService:
 
     @staticmethod
     def get_returned_books(reader_id: str) -> dict:
-        """Get books that have been returned (based on BorrowSlipDetail.status = 'Returned')"""
+        """Get books that have been returned using view"""
+
         reader = db.session.query(Reader).filter(Reader.reader_id == reader_id).first()
         if not reader:
             raise HTTPException(status_code=404, detail="Reader not found")
 
-        # Query BorrowSlipDetail with status = 'Returned'
-        raw_results = db.session.query(
-            BorrowSlipDetail.id,
-            BorrowSlipDetail.borrow_slip_id,
-            BorrowSlipDetail.book_id,
-            BorrowSlipDetail.return_date.label('detail_due_date'),
-            BorrowSlip.borrow_date,
-            BorrowSlipDetail.real_return_date.label('actual_return_date'),
-            sa.cast(BorrowSlipDetail.status, sa.String).label('detail_status_str')
-        ).join(
-            BorrowSlip, BorrowSlip.bs_id == BorrowSlipDetail.borrow_slip_id
-        ).filter(
-            BorrowSlip.reader_id == reader_id,
-            sa.cast(BorrowSlipDetail.status, sa.String) == 'Returned'
-        ).all()
+        query = text("""
+            SELECT 
+                borrow_detail_id,
+                borrow_slip_id,
+                book_id,
+                book_title,
+                author,
+                borrow_date,
+                due_date,
+                actual_return_date,
+                display_status
+            FROM vw_borrow_history
+            WHERE reader_id = :reader_id
+              AND detail_status = 'Returned'
+            ORDER BY actual_return_date DESC
+        """)
 
-        book_ids = [result.book_id for result in raw_results]
-        books = db.session.query(Book).filter(Book.book_id.in_(book_ids)).all()
-        book_dict = {b.book_id: b for b in books}
+        result = db.session.execute(query, {"reader_id": reader_id})
+        rows = result.fetchall()
 
         returned_books = []
-        for result in raw_results:
-            book = book_dict.get(result.book_id)
-            actual_return_date = result.actual_return_date
-
+        for row in rows:
+            r = dict(row._mapping)
             returned_books.append({
-                "borrow_detail_id": result.id,
-                "borrow_slip_id": result.borrow_slip_id,
-                "book_id": result.book_id,
-                "title": book.book_title.name if book and book.book_title else "Unknown",
-                "author": book.book_title.author if book and book.book_title else None,
-                "borrow_date": result.borrow_date.isoformat(),
-                "due_date": result.detail_due_date.isoformat() if result.detail_due_date else None,
-                "actual_return_date": actual_return_date.isoformat() if actual_return_date else None,
-                "status": "Returned"
+                "borrow_detail_id": r['borrow_detail_id'],
+                "borrow_slip_id": r['borrow_slip_id'],
+                "book_id": r['book_id'],
+                "title": r['book_title'],
+                "author": r['author'],
+                "borrow_date": r['borrow_date'].isoformat(),
+                "due_date": r['due_date'].isoformat() if r['due_date'] else None,
+                "actual_return_date": r['actual_return_date'].isoformat() if r['actual_return_date'] else None,
+                "status": r['display_status']
             })
 
         return {

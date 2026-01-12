@@ -15,6 +15,32 @@ from app.core.security import decode_access_token
 tz_vn = pytz.timezone("Asia/Ho_Chi_Minh")
 
 
+# Simple in-process trigger registry to replace DI-based side-effects
+from typing import Callable, Dict, List, Any
+
+
+class _TriggerRegistry:
+    def __init__(self):
+        self._handlers: Dict[str, List[Callable[..., Any]]] = {}
+
+    def register(self, event: str, func: Callable[..., Any]):
+        self._handlers.setdefault(event, []).append(func)
+
+    def fire(self, event: str, *args, **kwargs):
+        handlers = self._handlers.get(event, [])
+        results = []
+        for h in handlers:
+            try:
+                results.append(h(*args, **kwargs))
+            except Exception as e:
+                print(f"❌ Trigger '{event}' handler error: {e}")
+        return results
+
+
+# Singleton instance used across the app
+TriggerRegistry = _TriggerRegistry()
+
+
 def log_user_access(user_id: str, action: str, resource: str, details: dict = None) -> bool:
     """
     Log user access/view events for audit trail.
@@ -337,4 +363,50 @@ def check_all_readers_infractions() -> dict:
         import traceback
         traceback.print_exc()
         return None
+
+
+# Register default trigger handlers so services can fire events instead of
+# calling dependency functions directly.
+try:
+    # on_any_login should run a full check across readers
+    TriggerRegistry.register(
+        'on_any_login',
+        lambda *a, **k: check_all_readers_infractions()
+    )
+    # on_reader_login -> process infractions for single reader (if available)
+    def _on_reader_login_handler(user=None, **kwargs):
+        try:
+            if not user:
+                return None
+            reader = db.session.query(Reader).filter(Reader.user_id == user.user_id).first()
+            if not reader:
+                return None
+            return _process_reader_infractions(reader.reader_id)
+        except Exception as e:
+            print(f"❌ on_reader_login handler error: {e}")
+            return None
+
+    TriggerRegistry.register('on_reader_login', _on_reader_login_handler)
+
+    # on_manager_login / on_librarian_login -> update penalty descriptions
+    try:
+        from app.services.srv_penalty import PenaltyService
+
+        def _update_penalties_handler(**kwargs):
+            try:
+                return PenaltyService.update_all_penalty_descriptions()
+            except Exception as e:
+                print(f"❌ update_penalties handler error: {e}")
+                return None
+
+        TriggerRegistry.register('on_manager_login', _update_penalties_handler)
+        TriggerRegistry.register('on_librarian_login', _update_penalties_handler)
+    except Exception:
+        # penalty service may not be importable at import time in some tests
+        pass
+
+except Exception:
+    # Keep module import-safe
+    import traceback
+    traceback.print_exc()
 

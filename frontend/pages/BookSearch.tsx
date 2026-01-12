@@ -76,6 +76,10 @@ export const BookSearch: React.FC = () => {
 
   const PAGE_SIZE = 12;
 
+  const [groupBy, setGroupBy] = useState<'none' | 'publisher' | 'category'>('none');
+  const [publishers, setPublishers] = useState<Array<{ pub_id?: string; name: string }>>([]);
+  const [publishersLoading, setPublishersLoading] = useState(false);
+  const [selectedPublisher, setSelectedPublisher] = useState<string>('all');
   // Effects
   useEffect(() => {
     executeSearch(1);
@@ -354,74 +358,149 @@ export const BookSearch: React.FC = () => {
           </div>
         )}
 
-        {/* Book Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
-          {books.length === 0 && !loading && (
-            <div className="col-span-full text-center py-32 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
-              <p className="text-gray-400 text-xl font-medium">No books match your criteria.</p>
+        {/* Book Grid & Grouping Controls */}
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 text-sm text-slate-600">
+            <span className="font-bold uppercase text-xs tracking-wider">Group by</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => { setGroupBy('none'); setSelectedPublisher('all'); }} className={`px-3 py-2 rounded-xl font-semibold ${groupBy === 'none' ? 'bg-slate-900 text-white' : 'bg-white border'}`}>
+                None
+              </button>
+              <button onClick={async () => { setGroupBy('publisher'); setSelectedPublisher('all'); if (publishers.length === 0) {
+                  setPublishersLoading(true);
+                  try {
+                    const res = await api.getPublishers();
+                    let list: any[] = [];
+                    if (Array.isArray(res)) list = res;
+                    else if (res.data && Array.isArray(res.data.publishers)) list = res.data.publishers;
+                    else if (res.publishers && Array.isArray(res.publishers)) list = res.publishers;
+                    else if (res.data && Array.isArray(res.data)) list = res.data;
+                    setPublishers(list.map(p => ({ pub_id: p.pub_id || p.id || p.pubId, name: p.name || p.title || p.label }))); 
+                  } catch (e) {
+                    console.error('Failed to load publishers', e);
+                  } finally { setPublishersLoading(false); }
+                } }} className={`px-3 py-2 rounded-xl font-semibold ${groupBy === 'publisher' ? 'bg-slate-900 text-white' : 'bg-white border'}`}>
+                Publisher
+              </button>
+              <button onClick={() => { setGroupBy('category'); setSelectedPublisher('all'); }} className={`px-3 py-2 rounded-xl font-semibold ${groupBy === 'category' ? 'bg-slate-900 text-white' : 'bg-white border'}`}>
+                Category
+              </button>
             </div>
-          )}
-          
-          {books.map((book) => {
-            const bookId = getBookId(book);
-            const isSelected = selectedBooks.includes(bookId);
-            const isOutOfStock = book.available_books === 0;
-            const canBorrow = !isOutOfStock && !readerStats?.has_overdue && readerStats?.card_status !== 'Blocked';
+            {groupBy === 'publisher' && (
+              <div className="ml-4">
+                <label className="text-xs text-slate-600 mr-2 font-medium">Select publisher</label>
+                <select value={selectedPublisher} onChange={(e) => setSelectedPublisher(e.target.value)} className="px-3 py-2 rounded-xl border">
+                  <option value="all">All publishers</option>
+                  {publishersLoading ? <option>Loading...</option> : publishers.map(p => (
+                    <option key={p.pub_id || p.name} value={p.name}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <div className="text-sm text-slate-500">Showing <span className="font-bold text-slate-900">{books.length}</span> results</div>
+        </div>
+
+        {books.length === 0 && !loading ? (
+          <div className="col-span-full text-center py-32 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
+            <p className="text-gray-400 text-xl font-medium">No books match your criteria.</p>
+          </div>
+        ) : (
+          (() => {
+            // Helper to render each book card (reused for grouped and ungrouped views)
+            const renderBookCard = (book: BookSearchResult) => {
+              const bookId = getBookId(book);
+              const isSelected = selectedBooks.includes(bookId);
+              const isOutOfStock = book.available_books === 0;
+              const canBorrow = !isOutOfStock && !readerStats?.has_overdue && readerStats?.card_status !== 'Blocked';
+
+              return (
+                <div key={bookId} className={`group flex flex-col bg-white rounded-3xl transition-all duration-500 border-2 shadow-sm hover:shadow-2xl hover:-translate-y-3 overflow-hidden ${isSelected ? 'border-blue-500 ring-8 ring-blue-50' : 'border-transparent'}`}>
+                  <div className="relative aspect-[3/4] bg-slate-100 overflow-hidden">
+                    <img
+                      src={`https://covers.openlibrary.org/b/isbn/${book.isbn}-L.jpg`}
+                      alt={book.name}
+                      className={`w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110 ${isOutOfStock ? 'grayscale opacity-40' : ''}`}
+                      onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x400?text=No+Cover+Found'; }}
+                    />
+                    <div className="absolute top-4 left-4">
+                      <span className="bg-white/95 backdrop-blur-md text-slate-900 text-[10px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest shadow-lg">
+                        {book.category}
+                      </span>
+                    </div>
+                    {isSelected && (
+                      <div className="absolute inset-0 bg-blue-600/40 backdrop-blur-[3px] flex items-center justify-center animate-in zoom-in duration-300">
+                        <div className="bg-white text-blue-600 p-5 rounded-full shadow-2xl scale-110"><Check className="w-10 h-10 stroke-[4]" /></div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-7 flex flex-col flex-grow">
+                    <h3 className="font-black text-slate-900 text-lg leading-tight mb-2 line-clamp-2 h-14 group-hover:text-blue-600 transition-colors" title={book.name}>
+                      {book.name}
+                    </h3>
+                    <p className="text-sm text-slate-400 mb-6 font-medium">by <span className="text-slate-700 not-italic font-bold">{book.author}</span></p>
+
+                    <div className="mt-auto space-y-5">
+                      <div className="flex justify-between items-center py-3 border-y border-slate-50">
+                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg tracking-tighter ${book.available_books > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {book.available_books > 0 ? 'IN STOCK' : 'OUT OF STOCK'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono font-bold tracking-widest uppercase">ISBN: {book.isbn}</span>
+                      </div>
+
+                      <Button
+                        onClick={() => toggleBookSelection(bookId)}
+                        disabled={!canBorrow && !isSelected}
+                        className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all ${
+                          isSelected
+                            ? 'bg-blue-600 text-white shadow-xl shadow-blue-100'
+                            : !canBorrow ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-blue-600 shadow-xl shadow-slate-200'
+                        }`}
+                      >
+                        {isSelected ? 'Selected' : isOutOfStock ? 'No Stock' : 'Select to Borrow'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            };
+
+            if (groupBy === 'none') {
+              return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">{books.map(renderBookCard)}</div>;
+            }
+
+            // Grouped view
+            const sourceBooks = (groupBy === 'publisher' && selectedPublisher && selectedPublisher !== 'all')
+              ? books.filter(b => (b.publisher || '') === selectedPublisher)
+              : books;
+
+            const groups = sourceBooks.reduce((acc: Record<string, BookSearchResult[]>, b) => {
+              const key = groupBy === 'publisher' ? (b.publisher || 'Unknown Publisher') : (b.category || 'Uncategorized');
+              acc[key] = acc[key] || [];
+              acc[key].push(b);
+              return acc;
+            }, {});
+
+            const sortedKeys = Object.keys(groups).sort((a, b) => a.localeCompare(b));
 
             return (
-              <div key={bookId} className={`group flex flex-col bg-white rounded-3xl transition-all duration-500 border-2 shadow-sm hover:shadow-2xl hover:-translate-y-3 overflow-hidden ${isSelected ? 'border-blue-500 ring-8 ring-blue-50' : 'border-transparent'}`}>
-                {/* Cover */}
-                <div className="relative aspect-[3/4] bg-slate-100 overflow-hidden">
-                  <img 
-                    src={`https://covers.openlibrary.org/b/isbn/${book.isbn}-L.jpg`} 
-                    alt={book.name}
-                    className={`w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110 ${isOutOfStock ? 'grayscale opacity-40' : ''}`}
-                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x400?text=No+Cover+Found'; }}
-                  />
-                  <div className="absolute top-4 left-4">
-                    <span className="bg-white/95 backdrop-blur-md text-slate-900 text-[10px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest shadow-lg">
-                      {book.category}
-                    </span>
-                  </div>
-                  {isSelected && (
-                    <div className="absolute inset-0 bg-blue-600/40 backdrop-blur-[3px] flex items-center justify-center animate-in zoom-in duration-300">
-                      <div className="bg-white text-blue-600 p-5 rounded-full shadow-2xl scale-110"><Check className="w-10 h-10 stroke-[4]" /></div>
+              <div className="space-y-10 w-full">
+                {sortedKeys.map((key) => (
+                  <section key={key} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-lg font-extrabold text-slate-900">{key}</h3>
+                      <div className="text-sm text-slate-500">{groups[key].length} items</div>
                     </div>
-                  )}
-                </div>
-
-                {/* Content */}
-                <div className="p-7 flex flex-col flex-grow">
-                  <h3 className="font-black text-slate-900 text-lg leading-tight mb-2 line-clamp-2 h-14 group-hover:text-blue-600 transition-colors" title={book.name}>
-                    {book.name}
-                  </h3>
-                  <p className="text-sm text-slate-400 mb-6 font-medium">by <span className="text-slate-700 not-italic font-bold">{book.author}</span></p>
-                  
-                  <div className="mt-auto space-y-5">
-                    <div className="flex justify-between items-center py-3 border-y border-slate-50">
-                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg tracking-tighter ${book.available_books > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {book.available_books > 0 ? 'IN STOCK' : 'OUT OF STOCK'}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-mono font-bold tracking-widest uppercase">ISBN: {book.isbn}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {groups[key].map(renderBookCard)}
                     </div>
-
-                    <Button
-                      onClick={() => toggleBookSelection(bookId)}
-                      disabled={!canBorrow && !isSelected}
-                      className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all ${
-                        isSelected 
-                          ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' 
-                          : !canBorrow ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-blue-600 shadow-xl shadow-slate-200'
-                      }`}
-                    >
-                      {isSelected ? 'Selected' : isOutOfStock ? 'No Stock' : 'Select to Borrow'}
-                    </Button>
-                  </div>
-                </div>
+                  </section>
+                ))}
               </div>
             );
-          })}
-        </div>
+          })()
+        )}
 
         {/* Pagination */}
         {books.length > 0 && (
